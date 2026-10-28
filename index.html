@@ -214,26 +214,15 @@
           <summary>סנכרון בין מכשירים (מחשב/טלפון)</summary>
           <div style="margin-top:10px; font-size:13px;">
             <div id="acctStatus" style="margin-bottom:10px; color:var(--muted);"></div>
-
-            <div style="margin-bottom:14px;">
-              <div style="font-weight:600; margin-bottom:4px;">שלב 1 — במכשיר שבו כבר יש לך נתונים:</div>
-              <div style="color:var(--muted); margin-bottom:6px;">הפוך את המכשיר הזה לחשבון קבוע עם אימייל וסיסמה, כדי שתוכל להתחבר איתו גם ממכשירים אחרים.</div>
-              <div class="manual-edit-row">
-                <label>אימייל <input type="email" id="acctEmailLink" placeholder="you@example.com"></label>
-                <label>סיסמה <input type="password" id="acctPasswordLink" placeholder="לפחות 6 תווים"></label>
-              </div>
-              <div style="margin-top:8px;"><button class="btn secondary" id="acctLinkBtn">הפוך לחשבון קבוע</button></div>
+            <div style="color:var(--muted); margin-bottom:8px;">
+              בחר/י "קוד סנכרון" אישי משלך (מילה או מספר שקל לזכור) והקלד/י אותו בדיוק אותו הדבר בכל מכשיר
+              שבו רוצים לראות את אותם הנתונים. פעם ראשונה שמקלידים קוד - הוא "נתפס"; בפעם הבאה (במכשיר אחר)
+              הוא פשוט מתחבר לאותם נתונים.
             </div>
-
-            <div>
-              <div style="font-weight:600; margin-bottom:4px;">שלב 2 — במכשירים האחרים:</div>
-              <div style="color:var(--muted); margin-bottom:6px;">התחבר עם אותו אימייל וסיסמה כדי לראות את אותם הנתונים.</div>
-              <div class="manual-edit-row">
-                <label>אימייל <input type="email" id="acctEmailLogin" placeholder="you@example.com"></label>
-                <label>סיסמה <input type="password" id="acctPasswordLogin" placeholder="הסיסמה שלך"></label>
-              </div>
-              <div style="margin-top:8px;"><button class="btn secondary" id="acctLoginBtn">התחבר לחשבון הקיים</button></div>
+            <div class="manual-edit-row">
+              <label>קוד סנכרון <input type="text" id="acctSyncCode" placeholder="לדוגמה: lior2026"></label>
             </div>
+            <div style="margin-top:8px;"><button class="btn secondary" id="acctSyncBtn">התחבר עם הקוד הזה</button></div>
           </div>
         </details>
       </div>
@@ -394,58 +383,67 @@
     });
   }
 
-  // ---------- סנכרון בין מכשירים (חשבון עם אימייל/סיסמה) ----------
+  // ---------- סנכרון בין מכשירים, לפי "קוד סנכרון" פשוט ----------
+  // הופכים את הקוד שהמשתמש בחר לאימייל+סיסמה פיקטיביים אך דטרמיניסטיים (אותו
+  // קוד = אותו אימייל/סיסמה תמיד), כדי שלא יהיה צורך בהרשמה אמיתית/אימות מייל.
+  var SYNC_CODE_KEY = "attendanceSyncCode";
+
+  function codeToCreds(code){
+    var clean = code.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (!clean) return null;
+    var email = "sync-" + clean + "@attendance.local";
+    var password = "sync_" + clean + "_pw"; // תמיד 6+ תווים
+    return {email: email, password: password};
+  }
+
   function refreshAcctStatus(){
     var el = document.getElementById("acctStatus");
-    if (!el || !supabase) return;
-    supabase.auth.getUser().then(function(res){
-      var user = res.data && res.data.user;
-      if (user && user.email){
-        el.textContent = "מחובר כחשבון קבוע: " + user.email + " — אפשר להתחבר איתו מכל מכשיר.";
-      } else {
-        el.textContent = "המכשיר הזה משתמש כרגע בזיהוי זמני בלבד (לא מסונכרן אוטומטית עם מכשירים אחרים).";
-      }
-    });
+    if (!el) return;
+    var saved = localStorage.getItem(SYNC_CODE_KEY);
+    if (saved){
+      el.textContent = "מכשיר זה מחובר עם קוד הסנכרון: \"" + saved + "\".";
+      var codeInput = document.getElementById("acctSyncCode");
+      if (codeInput && !codeInput.value) codeInput.value = saved;
+    } else {
+      el.textContent = "מכשיר זה עדיין לא חובר לקוד סנכרון (משתמש בזיהוי זמני בלבד).";
+    }
   }
 
-  function linkAccount(){
-    var email = document.getElementById("acctEmailLink").value.trim();
-    var password = document.getElementById("acctPasswordLink").value;
-    if (!email || password.length < 6){
-      alert("יש למלא אימייל וסיסמה (לפחות 6 תווים)");
+  function syncWithCode(){
+    var codeInput = document.getElementById("acctSyncCode");
+    var code = codeInput.value;
+    var creds = codeToCreds(code);
+    if (!creds){
+      alert("יש להקליד קוד סנכרון (אותיות/מספרים באנגלית)");
       return;
     }
-    setStatus("הופך לחשבון קבוע…");
-    supabase.auth.updateUser({ email: email, password: password }).then(function(res){
-      if (res.error){
-        alert("שגיאה: " + res.error.message);
-        setStatus("שגיאה בהפיכת החשבון לקבוע");
-        return;
+    setStatus("מתחבר עם קוד הסנכרון…");
+    supabase.auth.signInWithPassword(creds).then(function(res){
+      if (!res.error){
+        return afterSyncSignIn(res.data.user.id, code);
       }
-      alert("בוצע! אם תתבקש לאשר במייל - אשר שם. עכשיו תוכל להתחבר באותו אימייל וסיסמה מכל מכשיר אחר.");
-      setStatus("מוכן");
-      refreshAcctStatus();
-    });
-  }
-
-  function loginExistingAccount(){
-    var email = document.getElementById("acctEmailLogin").value.trim();
-    var password = document.getElementById("acctPasswordLogin").value;
-    if (!email || !password){
-      alert("יש למלא אימייל וסיסמה");
-      return;
-    }
-    setStatus("מתחבר…");
-    supabase.auth.signInWithPassword({ email: email, password: password }).then(function(res){
-      if (res.error){
-        alert("שגיאה בהתחברות: " + res.error.message);
-        setStatus("שגיאת התחברות");
-        return;
-      }
-      userId = res.data.user.id;
-      return loadSettings().then(function(){ return loadMonth(state.year, state.month); }).then(function(){
-        render(); refreshAcctStatus(); setStatus("מוכן - מחובר");
+      // אין עדיין חשבון לקוד הזה - ניצור אחד חדש
+      return supabase.auth.signUp(creds).then(function(res2){
+        if (res2.error){
+          alert("שגיאה: " + res2.error.message);
+          setStatus("שגיאה בסנכרון");
+          return;
+        }
+        if (!res2.data.session){
+          alert("בפרויקט ה-Supabase שלך מופעל \"Confirm email\" - צריך לכבות את זה (Authentication → Providers → Email → Confirm email: Off) כדי שהקוד יעבוד בלי מייל אמיתי.");
+          setStatus("צריך לכבות Confirm email בסופרבייס");
+          return;
+        }
+        return afterSyncSignIn(res2.data.user.id, code);
       });
+    });
+  }
+
+  function afterSyncSignIn(uid, code){
+    userId = uid;
+    localStorage.setItem(SYNC_CODE_KEY, code.trim());
+    return loadSettings().then(function(){ return loadMonth(state.year, state.month); }).then(function(){
+      render(); refreshAcctStatus(); setStatus("מוכן - מסונכרן");
     });
   }
 
@@ -1026,8 +1024,7 @@
     });
   });
   document.getElementById("exportBtn").addEventListener("click", exportExcel);
-  document.getElementById("acctLinkBtn").addEventListener("click", linkAccount);
-  document.getElementById("acctLoginBtn").addEventListener("click", loginExistingAccount);
+  document.getElementById("acctSyncBtn").addEventListener("click", syncWithCode);
 
   setInterval(tickClock, 1000);
   tickClock();
