@@ -28,7 +28,8 @@
     font-family:"Segoe UI","Arial Hebrew","Noto Sans Hebrew",Arial,sans-serif;
     font-size:15px; line-height:1.4; padding:16px;
   }
-  .wrap{max-width:980px; margin:0 auto;}
+  .wrap{max-width:720px; margin:0 auto;}
+  .wrap.wide{max-width:980px;}
   .update-banner{
     position:sticky; top:0; z-index:50; background:var(--warn); color:#1c2230;
     padding:10px 16px; border-radius:10px; margin-bottom:12px;
@@ -40,14 +41,50 @@
   }
   header.app-head{
     display:flex; align-items:center; justify-content:space-between;
-    flex-wrap:wrap; gap:10px; margin-bottom:14px;
+    flex-wrap:wrap; gap:10px; margin-bottom:12px;
   }
   h1{font-size:19px; margin:0; font-weight:700;}
   .sub{color:var(--muted); font-size:13px; margin-top:2px;}
+  .tabs{display:flex; gap:8px; margin-bottom:14px;}
+  .tabs button{
+    flex:1; border:1px solid var(--line); background:var(--card); color:var(--muted);
+    border-radius:12px; padding:10px; font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .tabs button.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
   .card{
     background:var(--card); border:1px solid var(--line); border-radius:14px;
     padding:14px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04);
   }
+  .hidden{display:none !important;}
+
+  /* ---- today view ---- */
+  .today-date{font-size:15px; color:var(--muted); text-align:center;}
+  .today-date b{color:var(--ink); font-weight:700;}
+  .clock{font-size:42px; font-weight:800; text-align:center; letter-spacing:1px; margin:4px 0 2px; font-variant-numeric:tabular-nums;}
+  .today-status{text-align:center; font-size:15px; margin:10px 0 16px; min-height:22px;}
+  .today-status .elapsed{font-weight:700; font-variant-numeric:tabular-nums;}
+  .today-status.good{color:var(--good);} .today-status.bad{color:var(--bad);}
+  .big-action{display:flex; justify-content:center; margin-bottom:10px;}
+  .btn-xl{
+    border:none; border-radius:18px; padding:22px 40px; font-size:19px; font-weight:800;
+    cursor:pointer; width:100%; max-width:340px;
+  }
+  .btn-xl.start{background:var(--good); color:#fff;}
+  .btn-xl.stop{background:var(--bad); color:#fff;}
+  .btn-xl.done{background:var(--head); color:var(--muted);}
+  .secondary-actions{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:6px;}
+  .today-extra{
+    display:flex; gap:14px; align-items:center; flex-wrap:wrap; justify-content:center;
+    margin-top:14px; padding-top:14px; border-top:1px solid var(--line); font-size:13px;
+  }
+  .today-extra label{display:flex; align-items:center; gap:6px; color:var(--ink);}
+  .today-extra input[type=text]{min-width:160px;}
+  details.manual-edit{margin-top:10px; text-align:center;}
+  details.manual-edit summary{cursor:pointer; color:var(--accent); font-size:13px; display:inline-block;}
+  .manual-edit-row{display:flex; gap:10px; justify-content:center; margin-top:10px; flex-wrap:wrap;}
+  .manual-edit-row label{display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted);}
+
+  /* ---- month view (table) ---- */
   .nav{display:flex; align-items:center; gap:8px; justify-content:center;}
   .nav button{
     border:1px solid var(--line); background:var(--card); color:var(--ink);
@@ -96,11 +133,6 @@
   }
   .btn.secondary{background:var(--card); color:var(--ink); border:1px solid var(--line);}
   .btn:disabled{opacity:.5; cursor:default;}
-  .quickcard{display:flex; flex-direction:column; gap:8px;}
-  .quick-title{font-weight:700; font-size:14px;}
-  .quick-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-  .btn.big{font-size:16px; padding:12px 18px; border-radius:12px;}
-  .quick-today{color:var(--muted); font-size:13px; margin-right:auto;}
   .status{font-size:12px; color:var(--muted); align-self:center; margin-right:auto;}
   footer{text-align:center; color:var(--muted); font-size:12px; margin-top:18px;}
   @media (max-width:640px){
@@ -108,6 +140,7 @@
     table{font-size:12px;}
     thead th, tbody td{padding:4px 3px;}
     input[type=text]{min-width:60px;}
+    .clock{font-size:34px;}
   }
 </style>
 </head>
@@ -117,76 +150,106 @@
     <button id="updateReloadBtn">רענן עכשיו</button>
   </div>
 
-  <div class="wrap">
+  <div class="wrap" id="wrap">
     <header class="app-head">
       <div>
         <h1>שעון נוכחות</h1>
-        <div class="sub">דוח שעות חודשי — זמן כניסה/יציאה, חוסר ועודף שעות</div>
+        <div class="sub" id="subLabel">מסך היום</div>
       </div>
       <div class="status" id="statusLine">מתחבר…</div>
     </header>
 
-    <div class="card">
-      <div class="nav">
-        <button id="prevBtn">&#8594; חודש קודם</button>
-        <div class="month-label" id="monthLabel"></div>
-        <button id="nextBtn">חודש הבא &#8592;</button>
-      </div>
-      <div class="standard-row">
-        <label>שעות תקן ביום מלא: <input type="number" id="fullStd" min="1" max="24" step="0.25"></label>
-        <label>שעות תקן ביום מקוצר: <input type="number" id="shortStd" min="1" max="24" step="0.25"></label>
-        <span>ברירת מחדל: יום חמישי מקוצר (ניתן לשינוי בכל שורה)</span>
+    <div class="tabs">
+      <button id="tabTodayBtn" class="active">היום</button>
+      <button id="tabMonthBtn">חודש מלא</button>
+    </div>
+
+    <!-- ===== TODAY VIEW (main screen) ===== -->
+    <div id="view-today">
+      <div class="card">
+        <div class="today-date" id="todayDate"></div>
+        <div class="clock" id="liveClock">--:--:--</div>
+        <div class="today-status" id="todayStatus"></div>
+
+        <div class="big-action">
+          <button class="btn-xl start" id="startBtn">▶ התחל יום עבודה</button>
+          <button class="btn-xl stop hidden" id="stopBtn">⏹ סיים יום עבודה</button>
+        </div>
+        <div class="secondary-actions">
+          <button class="btn secondary hidden" id="reopenBtn">פתח מחדש את היציאה</button>
+          <button class="btn secondary hidden" id="resetTodayBtn">אפס את היום</button>
+        </div>
+
+        <div class="today-extra">
+          <label><input type="checkbox" id="todayShortDay"> יום מקוצר</label>
+          <label>הערה: <input type="text" id="todayNote" placeholder="הערה ליום הזה"></label>
+        </div>
+
+        <details class="manual-edit">
+          <summary>עריכה ידנית של השעות (אם טעית בלחיצה)</summary>
+          <div class="manual-edit-row">
+            <label>כניסה <input type="time" id="todayStartManual"></label>
+            <label>יציאה <input type="time" id="todayEndManual"></label>
+          </div>
+        </details>
       </div>
     </div>
 
-    <div class="card quickcard">
-      <div class="quick-title">דיווח מהיר להיום</div>
-      <div class="quick-row">
-        <button class="btn big" id="clockInBtn">⏱ סמן כניסה עכשיו</button>
-        <button class="btn big secondary" id="clockOutBtn">⏱ סמן יציאה עכשיו</button>
-        <span class="quick-today" id="quickToday"></span>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>יום</th><th>תאריך</th><th>כניסה</th><th>יציאה</th>
-              <th>שעות בפועל</th><th>תקן</th><th>מקוצר</th>
-              <th>עודף (1.25)</th><th>חוסר</th><th>כ.60 = 1.7</th><th>הערות</th>
-            </tr>
-          </thead>
-          <tbody id="rows"></tbody>
-          <tfoot>
-            <tr>
-              <td colspan="4">סה"כ</td>
-              <td id="totWorked">-</td>
-              <td id="totStd">-</td>
-              <td></td>
-              <td id="totOver">-</td>
-              <td id="totDef">-</td>
-              <td id="totCredit">-</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
+    <!-- ===== MONTH VIEW ===== -->
+    <div id="view-month" class="hidden">
+      <div class="card">
+        <div class="nav">
+          <button id="prevBtn">&#8594; חודש קודם</button>
+          <div class="month-label" id="monthLabel"></div>
+          <button id="nextBtn">חודש הבא &#8592;</button>
+        </div>
+        <div class="standard-row">
+          <label>שעות תקן ביום מלא: <input type="number" id="fullStd" min="1" max="24" step="0.25"></label>
+          <label>שעות תקן ביום מקוצר: <input type="number" id="shortStd" min="1" max="24" step="0.25"></label>
+          <span>ברירת מחדל: יום חמישי מקוצר (ניתן לשינוי בכל שורה)</span>
+        </div>
       </div>
 
-      <div class="totals">
-        <div class="stat"><div class="lbl">סה"כ שעות בפועל</div><div class="val" id="statWorked">0:00</div></div>
-        <div class="stat"><div class="lbl">סה"כ תקן</div><div class="val" id="statStd">0:00</div></div>
-        <div class="stat"><div class="lbl">עודף כולל 25%</div><div class="val good" id="statOver">0:00</div></div>
-        <div class="stat"><div class="lbl">סה"כ חוסר</div><div class="val bad" id="statDef">0:00</div></div>
-        <div class="stat"><div class="lbl">כ.60 = 1.7 (דק')</div><div class="val" id="statCredit">0</div></div>
-        <div class="stat"><div class="lbl">מאזן (עודף/חוסר)</div><div class="val" id="statNet">0:00</div></div>
-      </div>
+      <div class="card">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>יום</th><th>תאריך</th><th>כניסה</th><th>יציאה</th>
+                <th>שעות בפועל</th><th>תקן</th><th>מקוצר</th>
+                <th>עודף (1.25)</th><th>חוסר</th><th>כ.60 = 1.7</th><th>הערות</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+            <tfoot>
+              <tr>
+                <td colspan="4">סה"כ</td>
+                <td id="totWorked">-</td>
+                <td id="totStd">-</td>
+                <td></td>
+                <td id="totOver">-</td>
+                <td id="totDef">-</td>
+                <td id="totCredit">-</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
 
-      <div class="actions">
-        <span class="status" id="statusLine2"></span>
-        <button class="btn secondary" id="exportBtn">ייצוא לאקסל</button>
-        <button class="btn secondary" id="clearBtn">איפוס חודש</button>
+        <div class="totals">
+          <div class="stat"><div class="lbl">סה"כ שעות בפועל</div><div class="val" id="statWorked">0:00</div></div>
+          <div class="stat"><div class="lbl">סה"כ תקן</div><div class="val" id="statStd">0:00</div></div>
+          <div class="stat"><div class="lbl">עודף כולל 25%</div><div class="val good" id="statOver">0:00</div></div>
+          <div class="stat"><div class="lbl">סה"כ חוסר</div><div class="val bad" id="statDef">0:00</div></div>
+          <div class="stat"><div class="lbl">כ.60 = 1.7 (דק')</div><div class="val" id="statCredit">0</div></div>
+          <div class="stat"><div class="lbl">מאזן (עודף/חוסר)</div><div class="val" id="statNet">0:00</div></div>
+        </div>
+
+        <div class="actions">
+          <span class="status" id="statusLine2"></span>
+          <button class="btn secondary" id="exportBtn">ייצוא לאקסל</button>
+          <button class="btn secondary" id="clearBtn">איפוס חודש</button>
+        </div>
       </div>
     </div>
 
@@ -203,8 +266,8 @@
   // 1) מלא כאן את הפרטים מהפרויקט שלך ב-Supabase (Project Settings
   //    → API Keys. ה-URL מקבלים דרך כפתור "Connect" בראש דף הפרויקט).
   // ============================================================
-  var SUPABASE_URL = "https://udmxdhsvluorpploxjtg.supabase.co";
-  var SUPABASE_ANON_KEY = "sb_publishable_oKjkaD8lMQsXvxCZviBwmQ_zy5xFkl7";
+  var SUPABASE_URL = "https://YOUR-PROJECT-REF.supabase.co";
+  var SUPABASE_ANON_KEY = "YOUR-PUBLISHABLE-OR-ANON-KEY";
   // ============================================================
 
   var HE_DAYS = ["יום ראשון","יום שני","יום שלישי","יום רביעי","יום חמישי","יום שישי","שבת"];
@@ -226,6 +289,7 @@
   function pad(n){ return (n<10?"0":"")+n; }
   function dateKey(y,m,d){ return y+"-"+pad(m+1)+"-"+pad(d); }
   function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
+  function todayKeyNow(){ var n=new Date(); return dateKey(n.getFullYear(), n.getMonth(), n.getDate()); }
 
   function timeToHours(str){
     if (!str) return null;
@@ -363,7 +427,104 @@
     return supabase.from("attendance_days").delete().eq("user_id", userId).gte("day", from).lte("day", to);
   }
 
-  // ---------- rendering ----------
+  // ---------- tabs ----------
+  function showTab(which){
+    var isToday = which === "today";
+    document.getElementById("view-today").classList.toggle("hidden", !isToday);
+    document.getElementById("view-month").classList.toggle("hidden", isToday);
+    document.getElementById("tabTodayBtn").classList.toggle("active", isToday);
+    document.getElementById("tabMonthBtn").classList.toggle("active", !isToday);
+    document.getElementById("wrap").classList.toggle("wide", !isToday);
+    document.getElementById("subLabel").textContent = isToday ? "מסך היום" : "דוח שעות חודשי";
+  }
+
+  // ---------- today view rendering ----------
+  function renderToday(){
+    var now = new Date();
+    var key = todayKeyNow();
+    var rec = getDay(key);
+
+    document.getElementById("todayDate").innerHTML =
+      HE_DAYS[now.getDay()] + ", <b>" + pad(now.getDate())+"/"+pad(now.getMonth()+1)+"/"+now.getFullYear() + "</b>";
+
+    document.getElementById("todayShortDay").checked = !!rec.shortDay;
+    document.getElementById("todayNote").value = rec.note || "";
+    document.getElementById("todayStartManual").value = rec.start || "";
+    document.getElementById("todayEndManual").value = rec.end || "";
+
+    var startBtn = document.getElementById("startBtn");
+    var stopBtn = document.getElementById("stopBtn");
+    var reopenBtn = document.getElementById("reopenBtn");
+    var resetBtn = document.getElementById("resetTodayBtn");
+    var statusEl = document.getElementById("todayStatus");
+
+    if (!rec.start){
+      startBtn.classList.remove("hidden");
+      stopBtn.classList.add("hidden");
+      reopenBtn.classList.add("hidden");
+      resetBtn.classList.add("hidden");
+      statusEl.className = "today-status";
+      statusEl.textContent = "טרם התחלת את יום העבודה היום";
+    } else if (rec.start && !rec.end){
+      startBtn.classList.add("hidden");
+      stopBtn.classList.remove("hidden");
+      reopenBtn.classList.add("hidden");
+      resetBtn.classList.remove("hidden");
+      statusEl.className = "today-status";
+      statusEl.innerHTML = "בעבודה מאז <b>"+rec.start+"</b> · <span class=\"elapsed\" id=\"elapsedNow\">0:00</span> שעות";
+    } else {
+      startBtn.classList.add("hidden");
+      stopBtn.classList.add("hidden");
+      reopenBtn.classList.remove("hidden");
+      resetBtn.classList.remove("hidden");
+      var c = computeRow(rec);
+      var cls = c.deficit > 0 ? "bad" : "good";
+      statusEl.className = "today-status " + cls;
+      var extra = c.overtime > 0 ? (" · עודף " + hoursToHM(c.overtime)) : (c.deficit > 0 ? (" · חוסר " + hoursToHM(c.deficit)) : "");
+      statusEl.textContent = "היום הסתיים: " + rec.start + "–" + rec.end + " (" + hoursToHM(c.worked) + " שעות)" + extra;
+    }
+
+    tickElapsed();
+  }
+
+  function tickElapsed(){
+    var el = document.getElementById("elapsedNow");
+    if (!el) return;
+    var rec = getDay(todayKeyNow());
+    var startH = timeToHours(rec.start);
+    if (startH === null) return;
+    var now = new Date();
+    var nowH = now.getHours() + now.getMinutes()/60 + now.getSeconds()/3600;
+    var worked = nowH - startH;
+    if (worked < 0) worked += 24;
+    el.textContent = hoursToHM(worked);
+  }
+
+  function startWorkDay(){
+    var key = todayKeyNow();
+    var now = new Date();
+    setDay(key, {start: pad(now.getHours())+":"+pad(now.getMinutes())});
+    renderToday(); saveDay(key);
+  }
+  function stopWorkDay(){
+    var key = todayKeyNow();
+    var now = new Date();
+    setDay(key, {end: pad(now.getHours())+":"+pad(now.getMinutes())});
+    renderToday(); saveDay(key);
+  }
+  function reopenWorkDay(){
+    var key = todayKeyNow();
+    setDay(key, {end: ""});
+    renderToday(); saveDay(key);
+  }
+  function resetToday(){
+    if (!confirm("לאפס את הדיווח של היום?")) return;
+    var key = todayKeyNow();
+    setDay(key, {start:"", end:""});
+    renderToday(); saveDay(key);
+  }
+
+  // ---------- month table rendering ----------
   function setStatus(txt){
     var a = document.getElementById("statusLine"), b = document.getElementById("statusLine2");
     if (a) a.textContent = txt;
@@ -371,6 +532,8 @@
   }
 
   function render(){
+    renderToday();
+
     document.getElementById("fullStd").value = state.fullStd;
     document.getElementById("shortStd").value = state.shortStd;
     document.getElementById("monthLabel").textContent = HE_MONTHS[state.month] + " " + state.year;
@@ -378,8 +541,7 @@
     var tbody = document.getElementById("rows");
     tbody.innerHTML = "";
     var n = daysInMonth(state.year, state.month);
-    var now = new Date();
-    var todayKey = dateKey(now.getFullYear(), now.getMonth(), now.getDate());
+    var tKey = todayKeyNow();
 
     var totWorked=0, totStd=0, totOvertime=0, totDeficit=0, totCredit=0;
 
@@ -391,7 +553,7 @@
       var isWeekend = (dow === 5 || dow === 6);
 
       var tr = document.createElement("tr");
-      if (key === todayKey) tr.className = "today";
+      if (key === tKey) tr.className = "today";
       if (isWeekend) tr.className = (tr.className ? tr.className+" " : "") + "weekend";
 
       var c = computeRow(rec);
@@ -467,23 +629,6 @@
     if (m < 0){ m = 11; y -= 1; }
     if (m > 11){ m = 0; y += 1; }
     switchMonth(y, m);
-  }
-  function quickStamp(field){
-    var now = new Date();
-    var y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
-    var go = (y !== state.year || m !== state.month) ? switchMonth(y, m) : Promise.resolve();
-    go.then(function(){
-      var key = dateKey(y, m, d);
-      var patch = {}; patch[field] = pad(now.getHours())+":"+pad(now.getMinutes());
-      setDay(key, patch); render(); saveDay(key);
-      var row = document.querySelector('#rows tr.today');
-      if (row) row.scrollIntoView({block:"center", behavior:"smooth"});
-    });
-  }
-  function updateQuickToday(){
-    var now = new Date();
-    document.getElementById("quickToday").textContent =
-      HE_DAYS[now.getDay()] + ", " + pad(now.getDate())+"/"+pad(now.getMonth()+1)+"/"+now.getFullYear();
   }
 
   // ---------- Excel export (same columns/formulas as the original workbook) ----------
@@ -586,9 +731,6 @@
   }
 
   // ---------- content-hash self-polling (no build step needed) ----------
-  // Fetches this very page's own URL every minute and hashes the response.
-  // If the hash differs from the hash of what's currently loaded, a newer
-  // version has been deployed to GitHub Pages than what's running here.
   var baselineHash = null;
 
   function sha256(text){
@@ -597,30 +739,21 @@
       return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
     });
   }
-
   function fetchSelfHash(){
-    return fetch(location.href, {cache:"no-store"})
-      .then(function(r){ return r.text(); })
-      .then(sha256);
+    return fetch(location.href, {cache:"no-store"}).then(function(r){ return r.text(); }).then(sha256);
   }
-
   function startUpdatePolling(){
-    if (!window.crypto || !window.crypto.subtle) return; // very old browser, skip silently
+    if (!window.crypto || !window.crypto.subtle) return;
     fetchSelfHash().then(function(h){ baselineHash = h; });
-
     setInterval(check, 60000);
     document.addEventListener("visibilitychange", function(){
       if (document.visibilityState === "visible") check();
     });
-
     function check(){
       if (!baselineHash) return;
-      fetchSelfHash().then(function(h){
-        if (h !== baselineHash) showUpdateBanner();
-      }).catch(function(){ /* offline — skip this tick */ });
+      fetchSelfHash().then(function(h){ if (h !== baselineHash) showUpdateBanner(); }).catch(function(){});
     }
   }
-
   function showUpdateBanner(){
     var el = document.getElementById("updateBanner");
     if (!el.hidden) return;
@@ -628,11 +761,38 @@
     document.getElementById("updateReloadBtn").addEventListener("click", function(){ location.reload(); });
   }
 
+  // ---------- live clock ----------
+  function tickClock(){
+    var now = new Date();
+    document.getElementById("liveClock").textContent =
+      pad(now.getHours())+":"+pad(now.getMinutes())+":"+pad(now.getSeconds());
+    tickElapsed();
+  }
+
   // ---------- wiring ----------
+  document.getElementById("tabTodayBtn").addEventListener("click", function(){ showTab("today"); });
+  document.getElementById("tabMonthBtn").addEventListener("click", function(){ showTab("month"); });
+
+  document.getElementById("startBtn").addEventListener("click", startWorkDay);
+  document.getElementById("stopBtn").addEventListener("click", stopWorkDay);
+  document.getElementById("reopenBtn").addEventListener("click", reopenWorkDay);
+  document.getElementById("resetTodayBtn").addEventListener("click", resetToday);
+
+  document.getElementById("todayShortDay").addEventListener("change", function(e){
+    setDay(todayKeyNow(), {shortDay: e.target.checked}); renderToday(); saveDay(todayKeyNow());
+  });
+  document.getElementById("todayNote").addEventListener("change", function(e){
+    setDay(todayKeyNow(), {note: e.target.value}); saveDay(todayKeyNow());
+  });
+  document.getElementById("todayStartManual").addEventListener("change", function(e){
+    setDay(todayKeyNow(), {start: e.target.value}); renderToday(); saveDay(todayKeyNow());
+  });
+  document.getElementById("todayEndManual").addEventListener("change", function(e){
+    setDay(todayKeyNow(), {end: e.target.value}); renderToday(); saveDay(todayKeyNow());
+  });
+
   document.getElementById("prevBtn").addEventListener("click", function(){ changeMonth(-1); });
   document.getElementById("nextBtn").addEventListener("click", function(){ changeMonth(1); });
-  document.getElementById("clockInBtn").addEventListener("click", function(){ quickStamp("start"); });
-  document.getElementById("clockOutBtn").addEventListener("click", function(){ quickStamp("end"); });
   document.getElementById("fullStd").addEventListener("change", function(e){
     state.fullStd = parseFloat(e.target.value) || 9; render(); saveSettings();
   });
@@ -650,7 +810,8 @@
   });
   document.getElementById("exportBtn").addEventListener("click", exportExcel);
 
-  updateQuickToday();
+  setInterval(tickClock, 1000);
+  tickClock();
   startUpdatePolling();
 
   initSupabase().then(function(ok){
