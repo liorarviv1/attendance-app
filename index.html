@@ -504,24 +504,24 @@
     var key = todayKeyNow();
     var now = new Date();
     setDay(key, {start: pad(now.getHours())+":"+pad(now.getMinutes())});
-    renderToday(); saveDay(key);
+    render(); saveDay(key);
   }
   function stopWorkDay(){
     var key = todayKeyNow();
     var now = new Date();
     setDay(key, {end: pad(now.getHours())+":"+pad(now.getMinutes())});
-    renderToday(); saveDay(key);
+    render(); saveDay(key);
   }
   function reopenWorkDay(){
     var key = todayKeyNow();
     setDay(key, {end: ""});
-    renderToday(); saveDay(key);
+    render(); saveDay(key);
   }
   function resetToday(){
     if (!confirm("לאפס את הדיווח של היום?")) return;
     var key = todayKeyNow();
     setDay(key, {start:"", end:""});
-    renderToday(); saveDay(key);
+    render(); saveDay(key);
   }
 
   // ---------- month table rendering ----------
@@ -779,16 +779,16 @@
   document.getElementById("resetTodayBtn").addEventListener("click", resetToday);
 
   document.getElementById("todayShortDay").addEventListener("change", function(e){
-    setDay(todayKeyNow(), {shortDay: e.target.checked}); renderToday(); saveDay(todayKeyNow());
+    setDay(todayKeyNow(), {shortDay: e.target.checked}); render(); saveDay(todayKeyNow());
   });
   document.getElementById("todayNote").addEventListener("change", function(e){
     setDay(todayKeyNow(), {note: e.target.value}); saveDay(todayKeyNow());
   });
   document.getElementById("todayStartManual").addEventListener("change", function(e){
-    setDay(todayKeyNow(), {start: e.target.value}); renderToday(); saveDay(todayKeyNow());
+    setDay(todayKeyNow(), {start: e.target.value}); render(); saveDay(todayKeyNow());
   });
   document.getElementById("todayEndManual").addEventListener("change", function(e){
-    setDay(todayKeyNow(), {end: e.target.value}); renderToday(); saveDay(todayKeyNow());
+    setDay(todayKeyNow(), {end: e.target.value}); render(); saveDay(todayKeyNow());
   });
 
   document.getElementById("prevBtn").addEventListener("click", function(){ changeMonth(-1); });
