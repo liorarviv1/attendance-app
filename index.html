@@ -210,6 +210,35 @@
       </div>
 
       <div class="card">
+        <details class="manual-edit" id="acctDetails">
+          <summary>סנכרון בין מכשירים (מחשב/טלפון)</summary>
+          <div style="margin-top:10px; font-size:13px;">
+            <div id="acctStatus" style="margin-bottom:10px; color:var(--muted);"></div>
+
+            <div style="margin-bottom:14px;">
+              <div style="font-weight:600; margin-bottom:4px;">שלב 1 — במכשיר שבו כבר יש לך נתונים:</div>
+              <div style="color:var(--muted); margin-bottom:6px;">הפוך את המכשיר הזה לחשבון קבוע עם אימייל וסיסמה, כדי שתוכל להתחבר איתו גם ממכשירים אחרים.</div>
+              <div class="manual-edit-row">
+                <label>אימייל <input type="email" id="acctEmailLink" placeholder="you@example.com"></label>
+                <label>סיסמה <input type="password" id="acctPasswordLink" placeholder="לפחות 6 תווים"></label>
+              </div>
+              <div style="margin-top:8px;"><button class="btn secondary" id="acctLinkBtn">הפוך לחשבון קבוע</button></div>
+            </div>
+
+            <div>
+              <div style="font-weight:600; margin-bottom:4px;">שלב 2 — במכשירים האחרים:</div>
+              <div style="color:var(--muted); margin-bottom:6px;">התחבר עם אותו אימייל וסיסמה כדי לראות את אותם הנתונים.</div>
+              <div class="manual-edit-row">
+                <label>אימייל <input type="email" id="acctEmailLogin" placeholder="you@example.com"></label>
+                <label>סיסמה <input type="password" id="acctPasswordLogin" placeholder="הסיסמה שלך"></label>
+              </div>
+              <div style="margin-top:8px;"><button class="btn secondary" id="acctLoginBtn">התחבר לחשבון הקיים</button></div>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="card">
         <div class="table-scroll">
           <table>
             <thead>
@@ -362,6 +391,61 @@
       console.error(err);
       setStatus("שגיאת התחברות ל-Supabase");
       return false;
+    });
+  }
+
+  // ---------- סנכרון בין מכשירים (חשבון עם אימייל/סיסמה) ----------
+  function refreshAcctStatus(){
+    var el = document.getElementById("acctStatus");
+    if (!el || !supabase) return;
+    supabase.auth.getUser().then(function(res){
+      var user = res.data && res.data.user;
+      if (user && user.email){
+        el.textContent = "מחובר כחשבון קבוע: " + user.email + " — אפשר להתחבר איתו מכל מכשיר.";
+      } else {
+        el.textContent = "המכשיר הזה משתמש כרגע בזיהוי זמני בלבד (לא מסונכרן אוטומטית עם מכשירים אחרים).";
+      }
+    });
+  }
+
+  function linkAccount(){
+    var email = document.getElementById("acctEmailLink").value.trim();
+    var password = document.getElementById("acctPasswordLink").value;
+    if (!email || password.length < 6){
+      alert("יש למלא אימייל וסיסמה (לפחות 6 תווים)");
+      return;
+    }
+    setStatus("הופך לחשבון קבוע…");
+    supabase.auth.updateUser({ email: email, password: password }).then(function(res){
+      if (res.error){
+        alert("שגיאה: " + res.error.message);
+        setStatus("שגיאה בהפיכת החשבון לקבוע");
+        return;
+      }
+      alert("בוצע! אם תתבקש לאשר במייל - אשר שם. עכשיו תוכל להתחבר באותו אימייל וסיסמה מכל מכשיר אחר.");
+      setStatus("מוכן");
+      refreshAcctStatus();
+    });
+  }
+
+  function loginExistingAccount(){
+    var email = document.getElementById("acctEmailLogin").value.trim();
+    var password = document.getElementById("acctPasswordLogin").value;
+    if (!email || !password){
+      alert("יש למלא אימייל וסיסמה");
+      return;
+    }
+    setStatus("מתחבר…");
+    supabase.auth.signInWithPassword({ email: email, password: password }).then(function(res){
+      if (res.error){
+        alert("שגיאה בהתחברות: " + res.error.message);
+        setStatus("שגיאת התחברות");
+        return;
+      }
+      userId = res.data.user.id;
+      return loadSettings().then(function(){ return loadMonth(state.year, state.month); }).then(function(){
+        render(); refreshAcctStatus(); setStatus("מוכן - מחובר");
+      });
     });
   }
 
@@ -942,6 +1026,8 @@
     });
   });
   document.getElementById("exportBtn").addEventListener("click", exportExcel);
+  document.getElementById("acctLinkBtn").addEventListener("click", linkAccount);
+  document.getElementById("acctLoginBtn").addEventListener("click", loginExistingAccount);
 
   setInterval(tickClock, 1000);
   tickClock();
@@ -953,6 +1039,7 @@
   initSupabase().then(function(ok){
     if (!ok) { render(); return; }
     setStatus("טוען…");
+    refreshAcctStatus();
     return loadSettings().then(function(){ return loadMonth(state.year, state.month); })
       .then(function(){ render(); setStatus("מוכן"); })
       .catch(function(err){ console.error(err); render(); setStatus("שגיאת טעינה"); });
