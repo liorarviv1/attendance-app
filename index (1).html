@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>שעון נוכחות</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --card:#ffffff; --ink:#1c2230; --muted:#6b7280;
+    --line:#e5e7eb; --accent:#3b6ef5; --accent-ink:#ffffff;
+    --good:#2f9e5b; --bad:#d94c4c; --warn:#f0a93b; --head:#eef1fb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#14161d; --card:#1d2029; --ink:#eef0f5; --muted:#9aa1b2;
+      --line:#2b2f3a; --accent:#5b8bff; --accent-ink:#0c1020;
+      --good:#49c17f; --bad:#f06868; --warn:#f0b65b; --head:#242939;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#14161d; --card:#1d2029; --ink:#eef0f5; --muted:#9aa1b2;
+    --line:#2b2f3a; --accent:#5b8bff; --accent-ink:#0c1020;
+    --good:#49c17f; --bad:#f06868; --warn:#f0b65b; --head:#242939;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","Arial Hebrew","Noto Sans Hebrew",Arial,sans-serif;
+    font-size:15px; line-height:1.4; padding:16px;
+  }
+  .wrap{max-width:980px; margin:0 auto;}
+  .update-banner{
+    position:sticky; top:0; z-index:50; background:var(--warn); color:#1c2230;
+    padding:10px 16px; border-radius:10px; margin-bottom:12px;
+    display:flex; align-items:center; gap:10px; font-weight:600; font-size:14px;
+  }
+  .update-banner button{
+    border:none; border-radius:8px; padding:6px 12px; font-weight:700; cursor:pointer;
+    background:#1c2230; color:#fff;
+  }
+  header.app-head{
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:10px; margin-bottom:14px;
+  }
+  h1{font-size:19px; margin:0; font-weight:700;}
+  .sub{color:var(--muted); font-size:13px; margin-top:2px;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:14px; margin-bottom:14px; box-shadow:0 1px 3px rgba(0,0,0,.04);
+  }
+  .nav{display:flex; align-items:center; gap:8px; justify-content:center;}
+  .nav button{
+    border:1px solid var(--line); background:var(--card); color:var(--ink);
+    border-radius:10px; padding:6px 12px; font-size:14px; cursor:pointer;
+  }
+  .nav button:hover{background:var(--head);}
+  .month-label{font-weight:700; min-width:140px; text-align:center;}
+  .standard-row{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:10px; font-size:13px; color:var(--muted);}
+  .standard-row label{display:flex; align-items:center; gap:6px; color:var(--ink);}
+  .standard-row input[type=number]{width:60px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink);}
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  thead th{
+    background:var(--head); padding:8px 6px; border-bottom:1px solid var(--line);
+    font-weight:600; white-space:nowrap; position:sticky; top:0;
+  }
+  tbody td{padding:5px 6px; border-bottom:1px solid var(--line); text-align:center; vertical-align:middle;}
+  tbody tr.weekend{opacity:.45;}
+  tbody tr.today{background:color-mix(in srgb, var(--accent) 10%, transparent);}
+  input[type=time], input[type=text]{
+    border:1px solid var(--line); border-radius:7px; padding:5px 4px;
+    background:var(--card); color:var(--ink); width:100%; font-size:13px; text-align:center;
+  }
+  input[type=text]{text-align:right; min-width:90px;}
+  .timecell{display:flex; flex-direction:column; gap:3px; align-items:stretch; min-width:72px;}
+  .nowbtn{
+    border:1px solid var(--accent); background:transparent; color:var(--accent);
+    border-radius:6px; padding:2px 4px; font-size:11px; cursor:pointer; line-height:1.3;
+  }
+  .nowbtn:hover{background:var(--accent); color:var(--accent-ink);}
+  .nowbtn:disabled{opacity:.35; cursor:default;}
+  input[type=checkbox]{width:16px; height:16px; cursor:pointer;}
+  td.daycol{white-space:nowrap; font-weight:600;}
+  td.num.pos{color:var(--good); font-weight:600;}
+  td.num.neg{color:var(--bad); font-weight:600;}
+  tfoot td{padding:8px 6px; font-weight:700; border-top:2px solid var(--line); text-align:center;}
+  .table-scroll{overflow-x:auto;}
+  .totals{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+  .stat{flex:1; min-width:130px; background:var(--head); border-radius:10px; padding:10px 12px;}
+  .stat .lbl{font-size:12px; color:var(--muted);}
+  .stat .val{font-size:18px; font-weight:700; margin-top:2px;}
+  .stat .val.good{color:var(--good);} .stat .val.bad{color:var(--bad);}
+  .actions{display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:4px;}
+  .btn{
+    border:none; border-radius:10px; padding:8px 16px; font-size:14px; cursor:pointer;
+    background:var(--accent); color:var(--accent-ink); font-weight:600;
+  }
+  .btn.secondary{background:var(--card); color:var(--ink); border:1px solid var(--line);}
+  .btn:disabled{opacity:.5; cursor:default;}
+  .quickcard{display:flex; flex-direction:column; gap:8px;}
+  .quick-title{font-weight:700; font-size:14px;}
+  .quick-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .btn.big{font-size:16px; padding:12px 18px; border-radius:12px;}
+  .quick-today{color:var(--muted); font-size:13px; margin-right:auto;}
+  .status{font-size:12px; color:var(--muted); align-self:center; margin-right:auto;}
+  footer{text-align:center; color:var(--muted); font-size:12px; margin-top:18px;}
+  @media (max-width:640px){
+    .card{padding:10px;}
+    table{font-size:12px;}
+    thead th, tbody td{padding:4px 3px;}
+    input[type=text]{min-width:60px;}
+  }
+</style>
+</head>
+<body>
+  <div id="updateBanner" class="update-banner" hidden>
+    גרסה חדשה של האפליקציה פורסמה.
+    <button id="updateReloadBtn">רענן עכשיו</button>
+  </div>
+
+  <div class="wrap">
+    <header class="app-head">
+      <div>
+        <h1>שעון נוכחות</h1>
+        <div class="sub">דוח שעות חודשי — זמן כניסה/יציאה, חוסר ועודף שעות</div>
+      </div>
+      <div class="status" id="statusLine">מתחבר…</div>
+    </header>
+
+    <div class="card">
+      <div class="nav">
+        <button id="prevBtn">&#8594; חודש קודם</button>
+        <div class="month-label" id="monthLabel"></div>
+        <button id="nextBtn">חודש הבא &#8592;</button>
+      </div>
+      <div class="standard-row">
+        <label>שעות תקן ביום מלא: <input type="number" id="fullStd" min="1" max="24" step="0.25"></label>
+        <label>שעות תקן ביום מקוצר: <input type="number" id="shortStd" min="1" max="24" step="0.25"></label>
+        <span>ברירת מחדל: יום חמישי מקוצר (ניתן לשינוי בכל שורה)</span>
+      </div>
+    </div>
+
+    <div class="card quickcard">
+      <div class="quick-title">דיווח מהיר להיום</div>
+      <div class="quick-row">
+        <button class="btn big" id="clockInBtn">⏱ סמן כניסה עכשיו</button>
+        <button class="btn big secondary" id="clockOutBtn">⏱ סמן יציאה עכשיו</button>
+        <span class="quick-today" id="quickToday"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>יום</th><th>תאריך</th><th>כניסה</th><th>יציאה</th>
+              <th>שעות בפועל</th><th>תקן</th><th>מקוצר</th>
+              <th>עודף (1.25)</th><th>חוסר</th><th>כ.60 = 1.7</th><th>הערות</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="4">סה"כ</td>
+              <td id="totWorked">-</td>
+              <td id="totStd">-</td>
+              <td></td>
+              <td id="totOver">-</td>
+              <td id="totDef">-</td>
+              <td id="totCredit">-</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="totals">
+        <div class="stat"><div class="lbl">סה"כ שעות בפועל</div><div class="val" id="statWorked">0:00</div></div>
+        <div class="stat"><div class="lbl">סה"כ תקן</div><div class="val" id="statStd">0:00</div></div>
+        <div class="stat"><div class="lbl">עודף כולל 25%</div><div class="val good" id="statOver">0:00</div></div>
+        <div class="stat"><div class="lbl">סה"כ חוסר</div><div class="val bad" id="statDef">0:00</div></div>
+        <div class="stat"><div class="lbl">כ.60 = 1.7 (דק')</div><div class="val" id="statCredit">0</div></div>
+        <div class="stat"><div class="lbl">מאזן (עודף/חוסר)</div><div class="val" id="statNet">0:00</div></div>
+      </div>
+
+      <div class="actions">
+        <span class="status" id="statusLine2"></span>
+        <button class="btn secondary" id="exportBtn">ייצוא לאקסל</button>
+        <button class="btn secondary" id="clearBtn">איפוס חודש</button>
+      </div>
+    </div>
+
+    <footer>הנתונים נשמרים ב-Supabase. בדיקת עדכונים אוטומטית פעילה כל דקה.</footer>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================
+  // 1) מלא כאן את הפרטים מהפרויקט שלך ב-Supabase (Project Settings
+  //    → API Keys. ה-URL מקבלים דרך כפתור "Connect" בראש דף הפרויקט).
+  // ============================================================
+  var SUPABASE_URL = "https://udmxdhsvluorpploxjtg.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_oKjkaD8lMQsXvxCZviBwmQ_zy5xFkl7";
+  // ============================================================
+
+  var HE_DAYS = ["יום ראשון","יום שני","יום שלישי","יום רביעי","יום חמישי","יום שישי","שבת"];
+  var HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
+
+  var state = {
+    year: new Date().getFullYear(),
+    month: new Date().getMonth(),
+    fullStd: 9,
+    shortStd: 8,
+    days: {}
+  };
+
+  var supabase = null;
+  var userId = null;
+  var saveTimers = {};
+  var settingsSaveTimer = null;
+
+  function pad(n){ return (n<10?"0":"")+n; }
+  function dateKey(y,m,d){ return y+"-"+pad(m+1)+"-"+pad(d); }
+  function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
+
+  function timeToHours(str){
+    if (!str) return null;
+    var parts = str.split(":");
+    if (parts.length < 2) return null;
+    var h = parseInt(parts[0],10), mnt = parseInt(parts[1],10);
+    if (isNaN(h) || isNaN(mnt)) return null;
+    return h + mnt/60;
+  }
+  function hoursToHM(hrs){
+    var sign = hrs < 0 ? "-" : "";
+    hrs = Math.abs(hrs);
+    var h = Math.floor(hrs);
+    var m = Math.round((hrs - h) * 60);
+    if (m === 60){ m = 0; h += 1; }
+    return sign + h + ":" + pad(m);
+  }
+  function hhmm(str){
+    if (!str) return "";
+    var parts = str.split(":");
+    return pad(parseInt(parts[0],10)) + ":" + pad(parseInt(parts[1],10));
+  }
+
+  function getDay(key){ return state.days[key] || {start:"", end:"", shortDay:false, note:""}; }
+  function setDay(key, patch){ state.days[key] = Object.assign({}, getDay(key), patch); }
+
+  function computeRow(rec){
+    var std = (rec.shortDay) ? state.shortStd : state.fullStd;
+    var startH = timeToHours(rec.start), endH = timeToHours(rec.end);
+    var worked = null;
+    if (startH !== null && endH !== null){
+      worked = endH - startH;
+      if (worked < 0) worked += 24;
+    }
+    var overtime = 0, deficit = 0;
+    if (worked !== null){
+      if (worked > std) overtime = worked - std;
+      else if (worked < std) deficit = std - worked;
+    }
+    var credit160;
+    if (deficit > 0) credit160 = -deficit * 60 * 1.7;
+    else if (overtime > 0) credit160 = overtime * 60 * 1.7;
+    else credit160 = 0;
+    return {std:std, worked:worked, overtime:overtime, deficit:deficit, credit160:credit160};
+  }
+
+  // ---------- Supabase ----------
+  function initSupabase(){
+    if (!window.supabase || SUPABASE_URL.indexOf("YOUR-PROJECT-REF") !== -1){
+      setStatus("יש למלא את פרטי ה-Supabase בראש הקובץ");
+      return Promise.resolve(false);
+    }
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return supabase.auth.getSession().then(function(res){
+      var session = res.data && res.data.session;
+      if (session){ userId = session.user.id; return true; }
+      return supabase.auth.signInAnonymously().then(function(r){
+        if (r.error) throw r.error;
+        userId = r.data.user.id;
+        return true;
+      });
+    }).catch(function(err){
+      console.error(err);
+      setStatus("שגיאת התחברות ל-Supabase");
+      return false;
+    });
+  }
+
+  function loadSettings(){
+    return supabase.from("attendance_settings").select("*").eq("user_id", userId).maybeSingle()
+      .then(function(res){
+        if (res.error){ console.error(res.error); return; }
+        if (res.data){
+          state.fullStd = Number(res.data.full_std) || 9;
+          state.shortStd = Number(res.data.short_std) || 8;
+        } else {
+          return supabase.from("attendance_settings").insert({
+            user_id: userId, full_std: state.fullStd, short_std: state.shortStd
+          });
+        }
+      });
+  }
+
+  function saveSettings(){
+    if (!supabase || !userId) return;
+    clearTimeout(settingsSaveTimer);
+    settingsSaveTimer = setTimeout(function(){
+      setStatus("שומר…");
+      supabase.from("attendance_settings").upsert({
+        user_id: userId, full_std: state.fullStd, short_std: state.shortStd
+      }, {onConflict:"user_id"}).then(function(res){
+        setStatus(res.error ? "שגיאת שמירה" : "נשמר ✓");
+      });
+    }, 500);
+  }
+
+  function loadMonth(y, m){
+    var from = dateKey(y, m, 1), to = dateKey(y, m, daysInMonth(y, m));
+    return supabase.from("attendance_days").select("*")
+      .eq("user_id", userId).gte("day", from).lte("day", to)
+      .then(function(res){
+        if (res.error){ console.error(res.error); setStatus("שגיאת טעינה"); return; }
+        Object.keys(state.days).forEach(function(k){
+          if (k.indexOf(y+"-"+pad(m+1)) === 0) delete state.days[k];
+        });
+        (res.data||[]).forEach(function(row){
+          state.days[row.day] = {
+            start: row.start_time ? hhmm(row.start_time) : "",
+            end: row.end_time ? hhmm(row.end_time) : "",
+            shortDay: !!row.short_day,
+            note: row.note || ""
+          };
+        });
+      });
+  }
+
+  function saveDay(key){
+    if (!supabase || !userId) return;
+    clearTimeout(saveTimers[key]);
+    saveTimers[key] = setTimeout(function(){
+      var rec = getDay(key);
+      setStatus("שומר…");
+      supabase.from("attendance_days").upsert({
+        user_id: userId, day: key,
+        start_time: rec.start || null, end_time: rec.end || null,
+        short_day: !!rec.shortDay, note: rec.note || ""
+      }, {onConflict:"user_id,day"}).then(function(res){
+        setStatus(res.error ? "שגיאת שמירה" : "נשמר ✓");
+      });
+    }, 600);
+  }
+
+  function clearMonth(y, m){
+    var from = dateKey(y, m, 1), to = dateKey(y, m, daysInMonth(y, m));
+    return supabase.from("attendance_days").delete().eq("user_id", userId).gte("day", from).lte("day", to);
+  }
+
+  // ---------- rendering ----------
+  function setStatus(txt){
+    var a = document.getElementById("statusLine"), b = document.getElementById("statusLine2");
+    if (a) a.textContent = txt;
+    if (b) b.textContent = txt;
+  }
+
+  function render(){
+    document.getElementById("fullStd").value = state.fullStd;
+    document.getElementById("shortStd").value = state.shortStd;
+    document.getElementById("monthLabel").textContent = HE_MONTHS[state.month] + " " + state.year;
+
+    var tbody = document.getElementById("rows");
+    tbody.innerHTML = "";
+    var n = daysInMonth(state.year, state.month);
+    var now = new Date();
+    var todayKey = dateKey(now.getFullYear(), now.getMonth(), now.getDate());
+
+    var totWorked=0, totStd=0, totOvertime=0, totDeficit=0, totCredit=0;
+
+    for (var d=1; d<=n; d++){
+      var dt = new Date(state.year, state.month, d);
+      var dow = dt.getDay();
+      var key = dateKey(state.year, state.month, d);
+      var rec = getDay(key);
+      var isWeekend = (dow === 5 || dow === 6);
+
+      var tr = document.createElement("tr");
+      if (key === todayKey) tr.className = "today";
+      if (isWeekend) tr.className = (tr.className ? tr.className+" " : "") + "weekend";
+
+      var c = computeRow(rec);
+      if (!isWeekend){
+        totWorked += (c.worked||0); totStd += c.std;
+        totOvertime += c.overtime; totDeficit += c.deficit; totCredit += c.credit160;
+      }
+
+      tr.innerHTML =
+        '<td class="daycol">'+HE_DAYS[dow]+'</td>' +
+        '<td>'+pad(d)+'/'+pad(state.month+1)+'</td>' +
+        '<td><div class="timecell"><input type="time" data-k="'+key+'" data-f="start" value="'+rec.start+'" '+(isWeekend?"disabled":"")+'>' +
+          '<button type="button" class="nowbtn" data-k="'+key+'" data-f="start" '+(isWeekend?"disabled":"")+'>עכשיו</button></div></td>' +
+        '<td><div class="timecell"><input type="time" data-k="'+key+'" data-f="end" value="'+rec.end+'" '+(isWeekend?"disabled":"")+'>' +
+          '<button type="button" class="nowbtn" data-k="'+key+'" data-f="end" '+(isWeekend?"disabled":"")+'>עכשיו</button></div></td>' +
+        '<td>'+(c.worked!==null ? hoursToHM(c.worked) : "-")+'</td>' +
+        '<td>'+(isWeekend ? "-" : hoursToHM(c.std))+'</td>' +
+        '<td><input type="checkbox" data-k="'+key+'" data-f="shortDay" '+(rec.shortDay?"checked":"")+' '+(isWeekend?"disabled":"")+'></td>' +
+        '<td class="num '+(c.overtime>0?"pos":"")+'">'+(c.overtime>0 ? hoursToHM(c.overtime) : "-")+'</td>' +
+        '<td class="num '+(c.deficit>0?"neg":"")+'">'+(c.deficit>0 ? hoursToHM(c.deficit) : "-")+'</td>' +
+        '<td class="num '+(c.credit160>0?"pos":(c.credit160<0?"neg":""))+'">'+(c.credit160 ? Math.round(c.credit160*100)/100 : "-")+'</td>' +
+        '<td><input type="text" data-k="'+key+'" data-f="note" value="'+(rec.note||"").replace(/"/g,"&quot;")+'" placeholder="הערה"></td>';
+      tbody.appendChild(tr);
+    }
+
+    document.getElementById("totWorked").textContent = hoursToHM(totWorked);
+    document.getElementById("totStd").textContent = hoursToHM(totStd);
+    var overWith25 = totOvertime * 1.25;
+    document.getElementById("totOver").textContent = hoursToHM(overWith25);
+    document.getElementById("totDef").textContent = hoursToHM(totDeficit);
+    document.getElementById("totCredit").textContent = Math.round(totCredit*100)/100;
+
+    document.getElementById("statWorked").textContent = hoursToHM(totWorked);
+    document.getElementById("statStd").textContent = hoursToHM(totStd);
+    document.getElementById("statOver").textContent = hoursToHM(overWith25);
+    document.getElementById("statDef").textContent = hoursToHM(totDeficit);
+    document.getElementById("statCredit").textContent = Math.round(totCredit*100)/100;
+    var net = overWith25 - totDeficit;
+    var netEl = document.getElementById("statNet");
+    netEl.textContent = (net>=0?"+":"") + hoursToHM(net);
+    netEl.className = "val " + (net >= 0 ? "good" : "bad");
+
+    bindRowEvents();
+  }
+
+  function bindRowEvents(){
+    document.querySelectorAll("#rows input").forEach(function(inp){
+      inp.addEventListener("change", function(){
+        var key = inp.getAttribute("data-k"), field = inp.getAttribute("data-f");
+        var value = inp.type === "checkbox" ? inp.checked : inp.value;
+        var patch = {}; patch[field] = value;
+        setDay(key, patch); render(); saveDay(key);
+      });
+    });
+    document.querySelectorAll("#rows .nowbtn").forEach(function(btn){
+      btn.addEventListener("click", function(){
+        var key = btn.getAttribute("data-k"), field = btn.getAttribute("data-f");
+        var now = new Date();
+        var patch = {}; patch[field] = pad(now.getHours())+":"+pad(now.getMinutes());
+        setDay(key, patch); render(); saveDay(key);
+      });
+    });
+  }
+
+  function switchMonth(y, m){
+    setStatus("טוען…");
+    return loadMonth(y, m).then(function(){
+      state.year = y; state.month = m; render(); setStatus("מוכן");
+    });
+  }
+  function changeMonth(delta){
+    var m = state.month + delta, y = state.year;
+    if (m < 0){ m = 11; y -= 1; }
+    if (m > 11){ m = 0; y += 1; }
+    switchMonth(y, m);
+  }
+  function quickStamp(field){
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+    var go = (y !== state.year || m !== state.month) ? switchMonth(y, m) : Promise.resolve();
+    go.then(function(){
+      var key = dateKey(y, m, d);
+      var patch = {}; patch[field] = pad(now.getHours())+":"+pad(now.getMinutes());
+      setDay(key, patch); render(); saveDay(key);
+      var row = document.querySelector('#rows tr.today');
+      if (row) row.scrollIntoView({block:"center", behavior:"smooth"});
+    });
+  }
+  function updateQuickToday(){
+    var now = new Date();
+    document.getElementById("quickToday").textContent =
+      HE_DAYS[now.getDay()] + ", " + pad(now.getDate())+"/"+pad(now.getMonth()+1)+"/"+now.getFullYear();
+  }
+
+  // ---------- Excel export (same columns/formulas as the original workbook) ----------
+  function colLetter(n){ return String.fromCharCode(64+n); }
+  function timeFrac(str){ var h = timeToHours(str); return (h===null) ? null : h/24; }
+  function setCell(ws, addr, cell){ ws[addr] = cell; }
+
+  function exportExcel(){
+    var n = daysInMonth(state.year, state.month);
+    var wb = XLSX.utils.book_new();
+    var ws = {};
+    var C=3,D=4,E=5,F=6,G=7,H=8,I=9,J=10,K=11,L=12;
+
+    setCell(ws, "C1", {t:"s", v:"דוח שעות "+HE_MONTHS[state.month]+" "+state.year});
+    var headerRow = 3;
+    setCell(ws, colLetter(D)+headerRow, {t:"s", v:"תאריך"});
+    setCell(ws, colLetter(E)+headerRow, {t:"s", v:"כניסה"});
+    setCell(ws, colLetter(F)+headerRow, {t:"s", v:"יציאה "});
+    setCell(ws, colLetter(G)+headerRow, {t:"n", v:1, z:"0%"});
+    setCell(ws, colLetter(H)+headerRow, {t:"n", v:1.25, z:"0%"});
+    setCell(ws, colLetter(I)+headerRow, {t:"s", v:"כ.60 = 1.7"});
+    setCell(ws, colLetter(J)+headerRow, {t:"s", v:"תקן"});
+    setCell(ws, colLetter(K)+headerRow, {t:"s", v:"חוסר"});
+    setCell(ws, colLetter(L)+headerRow, {t:"s", v:"הערות"});
+
+    var startRow = headerRow + 2;
+    var firstDataRow = startRow;
+
+    for (var d=1; d<=n; d++){
+      var row = startRow + d - 1;
+      var dt = new Date(state.year, state.month, d);
+      var dow = dt.getDay();
+      var isWeekend = (dow===5 || dow===6);
+      var key = dateKey(state.year, state.month, d);
+      var rec = getDay(key);
+
+      setCell(ws, colLetter(C)+row, {t:"s", v:HE_DAYS[dow]});
+      setCell(ws, colLetter(D)+row, {t:"d", v:dt, z:"dd/mm/yyyy"});
+
+      if (isWeekend) continue;
+
+      var noteForExport = rec.shortDay ? ("מקוצרת" + (rec.note ? " - " + rec.note : "")) : (rec.note || "");
+      var sf = timeFrac(rec.start), ef = timeFrac(rec.end);
+      if (sf !== null) setCell(ws, colLetter(E)+row, {t:"n", v:sf, z:"h:mm"});
+      if (ef !== null) setCell(ws, colLetter(F)+row, {t:"n", v:ef, z:"h:mm"});
+      if (noteForExport) setCell(ws, colLetter(L)+row, {t:"s", v:noteForExport});
+
+      var Ec=colLetter(E)+row, Fc=colLetter(F)+row, Jc=colLetter(J)+row,
+          Hc=colLetter(H)+row, Kc=colLetter(K)+row, Lc=colLetter(L)+row, Ic=colLetter(I)+row;
+
+      setCell(ws, Jc, {
+        t:"n", z:"h:mm",
+        f: 'IF(ISNUMBER(SEARCH("מקוצרת",'+Lc+')),TIME(8,0,0),TIME(9,0,0))',
+        v: rec.shortDay ? (8/24) : (9/24)
+      });
+      var c = computeRow(rec);
+      setCell(ws, Hc, {
+        t: c.overtime>0 ? "n" : "s", z:"h:mm",
+        f: 'IF(OR(ISBLANK('+Ec+'),ISBLANK('+Fc+'),ISBLANK('+Jc+')),"",IF(MOD('+Fc+'-'+Ec+',1)>'+Jc+',MOD('+Fc+'-'+Ec+',1)-'+Jc+',""))',
+        v: c.overtime>0 ? (c.overtime/24) : ""
+      });
+      setCell(ws, Kc, {
+        t: c.deficit>0 ? "n" : "s", z:"h:mm",
+        f: 'IF(OR(ISBLANK('+Ec+'),ISBLANK('+Fc+'),ISBLANK('+Jc+')),"",IF('+Jc+'>MOD('+Fc+'-'+Ec+',1),'+Jc+'-MOD('+Fc+'-'+Ec+',1),""))',
+        v: c.deficit>0 ? (c.deficit/24) : ""
+      });
+      setCell(ws, Ic, {
+        t:"n",
+        f: 'IF(ISNUMBER('+Kc+'),-'+Kc+'*1440*1.7,IF(ISNUMBER('+Hc+'),'+Hc+'*1440*1.7,0))',
+        v: c.credit160
+      });
+    }
+
+    var lastDataRow = startRow + n - 1;
+    var totalRow = lastDataRow + 2;
+    var Hrange = colLetter(H)+firstDataRow+":"+colLetter(H)+lastDataRow;
+    var Irange = colLetter(I)+firstDataRow+":"+colLetter(I)+lastDataRow;
+    var Krange = colLetter(K)+firstDataRow+":"+colLetter(K)+lastDataRow;
+    var Ht=colLetter(H)+totalRow, It=colLetter(I)+totalRow, Kt=colLetter(K)+totalRow, Lt=colLetter(L)+totalRow;
+
+    setCell(ws, colLetter(C)+totalRow, {t:"s", v:'סה"כ'});
+    setCell(ws, Ht, {t:"n", z:"h:mm", f:"SUM("+Hrange+")*0.25+SUM("+Hrange+")"});
+    setCell(ws, It, {t:"n", f:"(SUMIF("+Irange+',">0")*1.25)+SUMIF('+Irange+',"<0")'});
+    setCell(ws, Kt, {t:"n", z:"h:mm", f:"SUM("+Krange+")"});
+    setCell(ws, Lt, {t:"n", z:"h:mm", f:"SUM("+Ht+"-"+Kt+")"});
+    setCell(ws, colLetter(H)+(totalRow+1), {t:"s", v:'כולל 25%'});
+    setCell(ws, colLetter(L)+(totalRow+1), {t:"s", v:'כמה נשאר עודף/חוסר'});
+    var balanceRow = totalRow+3;
+    setCell(ws, colLetter(K)+balanceRow, {t:"n", z:"h:mm:ss AM/PM", f:"IF("+Ht+">"+Kt+","+Ht+"-"+Kt+","+Kt+"-"+Ht+")"});
+
+    ws["!ref"] = "A1:"+colLetter(L)+balanceRow;
+    ws["!merges"] = [{s:{r:0,c:C-1}, e:{r:1,c:J-1}}];
+    ws["!cols"] = [{wch:3},{wch:3},{wch:11},{wch:11},{wch:8},{wch:8},{wch:6},{wch:8},{wch:11},{wch:8},{wch:9},{wch:22}];
+
+    XLSX.utils.book_append_sheet(wb, ws, "דוח שעות");
+    try { wb.Workbook = Object.assign({}, wb.Workbook, {Views:[{RTL:true}]}); } catch(e){}
+
+    var fname = "דוח_שעות_"+HE_MONTHS[state.month]+"_"+state.year+".xlsx";
+    XLSX.writeFile(wb, fname);
+  }
+
+  // ---------- content-hash self-polling (no build step needed) ----------
+  // Fetches this very page's own URL every minute and hashes the response.
+  // If the hash differs from the hash of what's currently loaded, a newer
+  // version has been deployed to GitHub Pages than what's running here.
+  var baselineHash = null;
+
+  function sha256(text){
+    var enc = new TextEncoder().encode(text);
+    return crypto.subtle.digest("SHA-256", enc).then(function(buf){
+      return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
+    });
+  }
+
+  function fetchSelfHash(){
+    return fetch(location.href, {cache:"no-store"})
+      .then(function(r){ return r.text(); })
+      .then(sha256);
+  }
+
+  function startUpdatePolling(){
+    if (!window.crypto || !window.crypto.subtle) return; // very old browser, skip silently
+    fetchSelfHash().then(function(h){ baselineHash = h; });
+
+    setInterval(check, 60000);
+    document.addEventListener("visibilitychange", function(){
+      if (document.visibilityState === "visible") check();
+    });
+
+    function check(){
+      if (!baselineHash) return;
+      fetchSelfHash().then(function(h){
+        if (h !== baselineHash) showUpdateBanner();
+      }).catch(function(){ /* offline — skip this tick */ });
+    }
+  }
+
+  function showUpdateBanner(){
+    var el = document.getElementById("updateBanner");
+    if (!el.hidden) return;
+    el.hidden = false;
+    document.getElementById("updateReloadBtn").addEventListener("click", function(){ location.reload(); });
+  }
+
+  // ---------- wiring ----------
+  document.getElementById("prevBtn").addEventListener("click", function(){ changeMonth(-1); });
+  document.getElementById("nextBtn").addEventListener("click", function(){ changeMonth(1); });
+  document.getElementById("clockInBtn").addEventListener("click", function(){ quickStamp("start"); });
+  document.getElementById("clockOutBtn").addEventListener("click", function(){ quickStamp("end"); });
+  document.getElementById("fullStd").addEventListener("change", function(e){
+    state.fullStd = parseFloat(e.target.value) || 9; render(); saveSettings();
+  });
+  document.getElementById("shortStd").addEventListener("change", function(e){
+    state.shortStd = parseFloat(e.target.value) || 8; render(); saveSettings();
+  });
+  document.getElementById("clearBtn").addEventListener("click", function(){
+    if (!confirm("לאפס את כל הנתונים של חודש זה?")) return;
+    clearMonth(state.year, state.month).then(function(){
+      Object.keys(state.days).forEach(function(k){
+        if (k.indexOf(state.year+"-"+pad(state.month+1)) === 0) delete state.days[k];
+      });
+      render();
+    });
+  });
+  document.getElementById("exportBtn").addEventListener("click", exportExcel);
+
+  updateQuickToday();
+  startUpdatePolling();
+
+  initSupabase().then(function(ok){
+    if (!ok) return;
+    setStatus("טוען…");
+    return loadSettings().then(function(){ return loadMonth(state.year, state.month); })
+      .then(function(){ render(); setStatus("מוכן"); });
+  });
+})();
+</script>
+</body>
+</html>
