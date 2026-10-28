@@ -258,6 +258,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -678,10 +679,13 @@
   function timeFrac(str){ var h = timeToHours(str); return (h===null) ? null : h/24; }
   function setCell(ws, addr, cell){ ws[addr] = cell; }
 
+  var DAY_TYPE_COLORS = {"vacation":"FFF59D", "sick":"FFCDD2", "holiday":"C8E6C9"};
+
   function exportExcel(){
     var n = daysInMonth(state.year, state.month);
     var wb = XLSX.utils.book_new();
     var ws = {};
+    var highlights = [];
     var C=3,D=4,E=5,F=6,G=7,H=8,I=9,J=10,K=11,L=12;
 
     setCell(ws, "C1", {t:"s", v:"דוח שעות "+HE_MONTHS[state.month]+" "+state.year});
@@ -711,8 +715,14 @@
 
       var key = dateKey(state.year, state.month, d);
       var rec = getDay(key);
+      var Cc = colLetter(C)+row;
 
-      setCell(ws, colLetter(C)+row, {t:"s", v:HE_DAYS[dow]});
+      if (rec.dayType){
+        setCell(ws, Cc, {t:"s", v:DAY_TYPE_LABELS[rec.dayType]});
+        highlights.push({addr:Cc, color:DAY_TYPE_COLORS[rec.dayType]});
+      } else {
+        setCell(ws, Cc, {t:"s", v:HE_DAYS[dow]});
+      }
       setCell(ws, colLetter(D)+row, {t:"d", v:dt, z:"dd/mm/yyyy"});
 
       var tags = [];
@@ -778,7 +788,107 @@
     try { wb.Workbook = Object.assign({}, wb.Workbook, {Views:[{RTL:true}]}); } catch(e){}
 
     var fname = "דוח_שעות_"+HE_MONTHS[state.month]+"_"+state.year+".xlsx";
-    XLSX.writeFile(wb, fname);
+
+    if (highlights.length && window.JSZip){
+      exportWithHighlights(wb, fname, highlights).catch(function(err){
+        console.error("highlight export failed, saving without colors", err);
+        XLSX.writeFile(wb, fname);
+      });
+    } else {
+      XLSX.writeFile(wb, fname);
+    }
+  }
+
+  // תוספת צבעי רקע לימי חופשה/מחלה/חג בייצוא. ספריית ה-xlsx החינמית לא כותבת
+  // עיצוב תאים (fill/font) דרך ה-API הרגיל שלה, אז בונים את הקובץ כרגיל ואז
+  // מזריקים את העיצוב ישירות ל-XML הפנימי של הקובץ (styles.xml + sheet1.xml).
+  function exportWithHighlights(wb, fname, highlights){
+    var buf = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+    return JSZip.loadAsync(buf).then(function(zip){
+      var parser = new DOMParser();
+      var serializer = new XMLSerializer();
+
+      return zip.file("xl/styles.xml").async("string").then(function(stylesXmlStr){
+        var stylesDoc = parser.parseFromString(stylesXmlStr, "application/xml");
+        var ns = stylesDoc.documentElement.namespaceURI;
+        var fillsEl = stylesDoc.getElementsByTagName("fills")[0];
+        var cellXfsEl = stylesDoc.getElementsByTagName("cellXfs")[0];
+        var fontsEl = stylesDoc.getElementsByTagName("fonts")[0];
+
+        var boldFontId = null;
+        function ensureBoldFont(){
+          if (boldFontId !== null) return boldFontId;
+          var baseFont = fontsEl.getElementsByTagName("font")[0];
+          var newFont = baseFont ? baseFont.cloneNode(true) : stylesDoc.createElementNS(ns, "font");
+          var bEl = stylesDoc.createElementNS(ns, "b");
+          newFont.insertBefore(bEl, newFont.firstChild);
+          fontsEl.appendChild(newFont);
+          var count = parseInt(fontsEl.getAttribute("count"), 10);
+          boldFontId = count;
+          fontsEl.setAttribute("count", String(count + 1));
+          return boldFontId;
+        }
+
+        var styleIndexForColor = {};
+        function ensureStyleForColor(color){
+          if (styleIndexForColor[color] !== undefined) return styleIndexForColor[color];
+          var fillEl = stylesDoc.createElementNS(ns, "fill");
+          var patternEl = stylesDoc.createElementNS(ns, "patternFill");
+          patternEl.setAttribute("patternType", "solid");
+          var fgEl = stylesDoc.createElementNS(ns, "fgColor");
+          fgEl.setAttribute("rgb", "FF" + color);
+          var bgEl = stylesDoc.createElementNS(ns, "bgColor");
+          bgEl.setAttribute("indexed", "64");
+          patternEl.appendChild(fgEl);
+          patternEl.appendChild(bgEl);
+          fillEl.appendChild(patternEl);
+          fillsEl.appendChild(fillEl);
+          var fillCount = parseInt(fillsEl.getAttribute("count"), 10);
+          var fillId = fillCount;
+          fillsEl.setAttribute("count", String(fillCount + 1));
+
+          var xfEl = stylesDoc.createElementNS(ns, "xf");
+          xfEl.setAttribute("numFmtId", "0");
+          xfEl.setAttribute("fontId", String(ensureBoldFont()));
+          xfEl.setAttribute("fillId", String(fillId));
+          xfEl.setAttribute("borderId", "0");
+          xfEl.setAttribute("xfId", "0");
+          xfEl.setAttribute("applyFill", "1");
+          xfEl.setAttribute("applyFont", "1");
+          cellXfsEl.appendChild(xfEl);
+          var xfCount = parseInt(cellXfsEl.getAttribute("count"), 10);
+          var xfIndex = xfCount;
+          cellXfsEl.setAttribute("count", String(xfCount + 1));
+
+          styleIndexForColor[color] = xfIndex;
+          return xfIndex;
+        }
+
+        highlights.forEach(function(h){ h.styleIndex = ensureStyleForColor(h.color); });
+
+        var newStylesXml = serializer.serializeToString(stylesDoc);
+        zip.file("xl/styles.xml", newStylesXml);
+
+        var sheetPath = "xl/worksheets/sheet1.xml";
+        return zip.file(sheetPath).async("string").then(function(sheetXmlStr){
+          var sheetDoc = parser.parseFromString(sheetXmlStr, "application/xml");
+          highlights.forEach(function(h){
+            var cEl = sheetDoc.querySelector('c[r="' + h.addr + '"]');
+            if (cEl) cEl.setAttribute("s", String(h.styleIndex));
+          });
+          var newSheetXml = serializer.serializeToString(sheetDoc);
+          zip.file(sheetPath, newSheetXml);
+
+          return zip.generateAsync({type:"blob", mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+        });
+      });
+    }).then(function(blob){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    });
   }
 
   // ---------- live clock ----------
