@@ -30,15 +30,6 @@
   }
   .wrap{max-width:720px; margin:0 auto;}
   .wrap.wide{max-width:980px;}
-  .update-banner{
-    position:sticky; top:0; z-index:50; background:var(--warn); color:#1c2230;
-    padding:10px 16px; border-radius:10px; margin-bottom:12px;
-    display:flex; align-items:center; gap:10px; font-weight:600; font-size:14px;
-  }
-  .update-banner button{
-    border:none; border-radius:8px; padding:6px 12px; font-weight:700; cursor:pointer;
-    background:#1c2230; color:#fff;
-  }
   header.app-head{
     display:flex; align-items:center; justify-content:space-between;
     flex-wrap:wrap; gap:10px; margin-bottom:12px;
@@ -103,6 +94,11 @@
   tbody td{padding:5px 6px; border-bottom:1px solid var(--line); text-align:center; vertical-align:middle;}
   tbody tr.weekend{opacity:.45;}
   tbody tr.today{background:color-mix(in srgb, var(--accent) 10%, transparent);}
+  tbody tr.week-start td{border-top:2px solid var(--accent);}
+  select.daytype{
+    border:1px solid var(--line); border-radius:7px; padding:5px 4px;
+    background:var(--card); color:var(--ink); width:100%; font-size:12.5px;
+  }
   input[type=time], input[type=text]{
     border:1px solid var(--line); border-radius:7px; padding:5px 4px;
     background:var(--card); color:var(--ink); width:100%; font-size:13px; text-align:center;
@@ -145,11 +141,6 @@
 </style>
 </head>
 <body>
-  <div id="updateBanner" class="update-banner" hidden>
-    גרסה חדשה של האפליקציה פורסמה.
-    <button id="updateReloadBtn">רענן עכשיו</button>
-  </div>
-
   <div class="wrap" id="wrap">
     <header class="app-head">
       <div>
@@ -182,6 +173,14 @@
 
         <div class="today-extra">
           <label><input type="checkbox" id="todayShortDay"> יום מקוצר</label>
+          <label>סוג יום:
+            <select id="todayDayType">
+              <option value="">רגיל</option>
+              <option value="vacation">חופשה</option>
+              <option value="sick">מחלה</option>
+              <option value="holiday">חג</option>
+            </select>
+          </label>
           <label>הערה: <input type="text" id="todayNote" placeholder="הערה ליום הזה"></label>
         </div>
 
@@ -216,7 +215,7 @@
             <thead>
               <tr>
                 <th>יום</th><th>תאריך</th><th>כניסה</th><th>יציאה</th>
-                <th>שעות בפועל</th><th>תקן</th><th>מקוצר</th>
+                <th>שעות בפועל</th><th>תקן</th><th>מקוצר</th><th>סוג יום</th>
                 <th>עודף (1.25)</th><th>חוסר</th><th>כ.60 = 1.7</th><th>הערות</th>
               </tr>
             </thead>
