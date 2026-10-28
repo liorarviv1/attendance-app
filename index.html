@@ -444,6 +444,7 @@
     localStorage.setItem(SYNC_CODE_KEY, code.trim());
     return loadSettings().then(function(){ return loadMonth(state.year, state.month); }).then(function(){
       render(); refreshAcctStatus(); setStatus("מוכן - מסונכרן");
+      startRealtime();
     });
   }
 
@@ -516,6 +517,36 @@
   function clearMonth(y, m){
     var from = dateKey(y, m, 1), to = dateKey(y, m, daysInMonth(y, m));
     return supabase.from("attendance_days").delete().eq("user_id", userId).gte("day", from).lte("day", to);
+  }
+
+  // ---------- עדכון חי (כמו "פראג") - Supabase Realtime + פולינג גיבוי ----------
+  var realtimeChannel = null;
+  var reloadTimer = null;
+  var reloadInFlight = false, reloadAgain = false;
+
+  function scheduleReload(){
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(doReload, 300);
+  }
+  function doReload(){
+    if (!supabase || !userId) return;
+    if (reloadInFlight){ reloadAgain = true; return; }
+    reloadInFlight = true;
+    loadSettings().then(function(){ return loadMonth(state.year, state.month); })
+      .then(function(){ render(); })
+      .catch(function(err){ console.error(err); })
+      .finally(function(){
+        reloadInFlight = false;
+        if (reloadAgain){ reloadAgain = false; doReload(); }
+      });
+  }
+  function startRealtime(){
+    if (!supabase || !userId) return;
+    if (realtimeChannel){ try { supabase.removeChannel(realtimeChannel); } catch(e){} realtimeChannel = null; }
+    realtimeChannel = supabase.channel("attendance-sync-" + userId)
+      .on("postgres_changes", {event:"*", schema:"public", table:"attendance_days", filter:"user_id=eq." + userId}, scheduleReload)
+      .on("postgres_changes", {event:"*", schema:"public", table:"attendance_settings", filter:"user_id=eq." + userId}, scheduleReload)
+      .subscribe();
   }
 
   // ---------- tabs ----------
@@ -1029,6 +1060,11 @@
   setInterval(tickClock, 1000);
   tickClock();
 
+  // רענון גיבוי כל כמה שניות ובכל פעם שחוזרים למסך/לטאב - גם אם ה-realtime
+  // מפספס אירוע (למשל כי המכשיר היה רדום), זה תמיד יתעדכן תוך כמה שניות.
+  setInterval(function(){ if (!document.hidden) scheduleReload(); }, 8000);
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) scheduleReload(); });
+
   // מציגים את הטבלה (עם ימי החודש) גם לפני/בלי חיבור לסופרבייס, כדי שהתאריכים
   // תמיד יופיעו - אם אין חיבור, הנתונים פשוט לא יישמרו עד שהחיבור יתוקן.
   render();
@@ -1038,7 +1074,7 @@
     setStatus("טוען…");
     refreshAcctStatus();
     return loadSettings().then(function(){ return loadMonth(state.year, state.month); })
-      .then(function(){ render(); setStatus("מוכן"); })
+      .then(function(){ render(); setStatus("מוכן"); startRealtime(); })
       .catch(function(err){ console.error(err); render(); setStatus("שגיאת טעינה"); });
   });
 })();
