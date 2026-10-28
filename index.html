@@ -698,19 +698,22 @@
 
     var startRow = headerRow + 2;
     var firstDataRow = startRow;
+    var row = startRow;
+    var firstRowWritten = false;
 
     for (var d=1; d<=n; d++){
-      var row = startRow + d - 1;
       var dt = new Date(state.year, state.month, d);
       var dow = dt.getDay();
       var isWeekend = (dow===5 || dow===6);
+      if (isWeekend) continue; // שישי/שבת לא מקבלים שורה בכלל
+
+      if (dow === 0 && firstRowWritten) row += 1; // שורת רווח קטנה בין שבוע לשבוע
+
       var key = dateKey(state.year, state.month, d);
       var rec = getDay(key);
 
       setCell(ws, colLetter(C)+row, {t:"s", v:HE_DAYS[dow]});
       setCell(ws, colLetter(D)+row, {t:"d", v:dt, z:"dd/mm/yyyy"});
-
-      if (isWeekend) continue;
 
       var tags = [];
       if (rec.dayType) tags.push(DAY_TYPE_LABELS[rec.dayType]);
@@ -745,9 +748,12 @@
         f: 'IF(ISNUMBER('+Kc+'),-'+Kc+'*1440*1.7,IF(ISNUMBER('+Hc+'),'+Hc+'*1440*1.7,0))',
         v: c.credit160
       });
+
+      firstRowWritten = true;
+      row += 1;
     }
 
-    var lastDataRow = startRow + n - 1;
+    var lastDataRow = row - 1;
     var totalRow = lastDataRow + 2;
     var Hrange = colLetter(H)+firstDataRow+":"+colLetter(H)+lastDataRow;
     var Irange = colLetter(I)+firstDataRow+":"+colLetter(I)+lastDataRow;
