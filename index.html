@@ -226,6 +226,7 @@
                 <td id="totWorked">-</td>
                 <td id="totStd">-</td>
                 <td></td>
+                <td></td>
                 <td id="totOver">-</td>
                 <td id="totDef">-</td>
                 <td id="totCredit">-</td>
@@ -252,7 +253,7 @@
       </div>
     </div>
 
-    <footer>הנתונים נשמרים ב-Supabase. בדיקת עדכונים אוטומטית פעילה כל דקה.</footer>
+    <footer>הנתונים נשמרים ב-Supabase.</footer>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -312,11 +313,17 @@
     return pad(parseInt(parts[0],10)) + ":" + pad(parseInt(parts[1],10));
   }
 
-  function getDay(key){ return state.days[key] || {start:"", end:"", shortDay:false, note:""}; }
+  var DAY_TYPE_LABELS = {"":"רגיל", "vacation":"חופשה", "sick":"מחלה", "holiday":"חג"};
+
+  function getDay(key){ return state.days[key] || {start:"", end:"", shortDay:false, note:"", dayType:""}; }
   function setDay(key, patch){ state.days[key] = Object.assign({}, getDay(key), patch); }
 
   function computeRow(rec){
     var std = (rec.shortDay) ? state.shortStd : state.fullStd;
+    if (rec.dayType){
+      // חג / מחלה / חופשה - נספר כיום תקן מלא, ללא עודף/חוסר
+      return {std:std, worked:std, overtime:0, deficit:0, credit160:0};
+    }
     var startH = timeToHours(rec.start), endH = timeToHours(rec.end);
     var worked = null;
     if (startH !== null && endH !== null){
@@ -399,7 +406,8 @@
             start: row.start_time ? hhmm(row.start_time) : "",
             end: row.end_time ? hhmm(row.end_time) : "",
             shortDay: !!row.short_day,
-            note: row.note || ""
+            note: row.note || "",
+            dayType: row.day_type || ""
           };
         });
       });
@@ -414,7 +422,8 @@
       supabase.from("attendance_days").upsert({
         user_id: userId, day: key,
         start_time: rec.start || null, end_time: rec.end || null,
-        short_day: !!rec.shortDay, note: rec.note || ""
+        short_day: !!rec.shortDay, note: rec.note || "",
+        day_type: rec.dayType || ""
       }, {onConflict:"user_id,day"}).then(function(res){
         setStatus(res.error ? "שגיאת שמירה" : "נשמר ✓");
       });
@@ -435,6 +444,12 @@
     document.getElementById("tabMonthBtn").classList.toggle("active", !isToday);
     document.getElementById("wrap").classList.toggle("wide", !isToday);
     document.getElementById("subLabel").textContent = isToday ? "מסך היום" : "דוח שעות חודשי";
+    if (!isToday){
+      setTimeout(function(){
+        var todayRow = document.querySelector("#rows tr.today");
+        if (todayRow) todayRow.scrollIntoView({behavior:"smooth", block:"center"});
+      }, 50);
+    }
   }
 
   // ---------- today view rendering ----------
@@ -447,6 +462,7 @@
       HE_DAYS[now.getDay()] + ", <b>" + pad(now.getDate())+"/"+pad(now.getMonth()+1)+"/"+now.getFullYear() + "</b>";
 
     document.getElementById("todayShortDay").checked = !!rec.shortDay;
+    document.getElementById("todayDayType").value = rec.dayType || "";
     document.getElementById("todayNote").value = rec.note || "";
     document.getElementById("todayStartManual").value = rec.start || "";
     document.getElementById("todayEndManual").value = rec.end || "";
@@ -457,7 +473,14 @@
     var resetBtn = document.getElementById("resetTodayBtn");
     var statusEl = document.getElementById("todayStatus");
 
-    if (!rec.start){
+    if (rec.dayType){
+      startBtn.classList.add("hidden");
+      stopBtn.classList.add("hidden");
+      reopenBtn.classList.add("hidden");
+      resetBtn.classList.remove("hidden");
+      statusEl.className = "today-status";
+      statusEl.textContent = "היום מסומן כ: " + DAY_TYPE_LABELS[rec.dayType];
+    } else if (!rec.start){
       startBtn.classList.remove("hidden");
       stopBtn.classList.add("hidden");
       reopenBtn.classList.add("hidden");
@@ -519,7 +542,7 @@
   function resetToday(){
     if (!confirm("לאפס את הדיווח של היום?")) return;
     var key = todayKeyNow();
-    setDay(key, {start:"", end:""});
+    setDay(key, {start:"", end:"", dayType:""});
     render(); saveDay(key);
   }
 
@@ -554,12 +577,17 @@
       var tr = document.createElement("tr");
       if (key === tKey) tr.className = "today";
       if (isWeekend) tr.className = (tr.className ? tr.className+" " : "") + "weekend";
+      if (dow === 0 && d !== 1) tr.className = (tr.className ? tr.className+" " : "") + "week-start";
 
       var c = computeRow(rec);
       if (!isWeekend){
         totWorked += (c.worked||0); totStd += c.std;
         totOvertime += c.overtime; totDeficit += c.deficit; totCredit += c.credit160;
       }
+
+      var dtOpts = ["", "vacation", "sick", "holiday"].map(function(v){
+        return '<option value="'+v+'" '+(rec.dayType===v?"selected":"")+'>'+DAY_TYPE_LABELS[v]+'</option>';
+      }).join("");
 
       tr.innerHTML =
         '<td class="daycol">'+HE_DAYS[dow]+'</td>' +
@@ -571,6 +599,7 @@
         '<td>'+(c.worked!==null ? hoursToHM(c.worked) : "-")+'</td>' +
         '<td>'+(isWeekend ? "-" : hoursToHM(c.std))+'</td>' +
         '<td><input type="checkbox" data-k="'+key+'" data-f="shortDay" '+(rec.shortDay?"checked":"")+' '+(isWeekend?"disabled":"")+'></td>' +
+        '<td><select class="daytype" data-k="'+key+'" data-f="dayType" '+(isWeekend?"disabled":"")+'>'+dtOpts+'</select></td>' +
         '<td class="num '+(c.overtime>0?"pos":"")+'">'+(c.overtime>0 ? hoursToHM(c.overtime) : "-")+'</td>' +
         '<td class="num '+(c.deficit>0?"neg":"")+'">'+(c.deficit>0 ? hoursToHM(c.deficit) : "-")+'</td>' +
         '<td class="num '+(c.credit160>0?"pos":(c.credit160<0?"neg":""))+'">'+(c.credit160 ? Math.round(c.credit160*100)/100 : "-")+'</td>' +
@@ -598,13 +627,24 @@
     bindRowEvents();
   }
 
+  function renderPreserveFocus(){
+    var active = document.activeElement;
+    var k = active && active.getAttribute ? active.getAttribute("data-k") : null;
+    var f = active && active.getAttribute ? active.getAttribute("data-f") : null;
+    render();
+    if (k && f){
+      var again = document.querySelector('#rows [data-k="'+k+'"][data-f="'+f+'"]');
+      if (again) again.focus();
+    }
+  }
+
   function bindRowEvents(){
-    document.querySelectorAll("#rows input").forEach(function(inp){
+    document.querySelectorAll("#rows input, #rows select").forEach(function(inp){
       inp.addEventListener("change", function(){
         var key = inp.getAttribute("data-k"), field = inp.getAttribute("data-f");
         var value = inp.type === "checkbox" ? inp.checked : inp.value;
         var patch = {}; patch[field] = value;
-        setDay(key, patch); render(); saveDay(key);
+        setDay(key, patch); renderPreserveFocus(); saveDay(key);
       });
     });
     document.querySelectorAll("#rows .nowbtn").forEach(function(btn){
@@ -619,8 +659,11 @@
 
   function switchMonth(y, m){
     setStatus("טוען…");
+    state.year = y; state.month = m; render(); // מציגים מיד את ימי החודש, גם לפני שהנתונים הגיעו
     return loadMonth(y, m).then(function(){
-      state.year = y; state.month = m; render(); setStatus("מוכן");
+      render(); setStatus("מוכן");
+    }).catch(function(err){
+      console.error(err); render(); setStatus("שגיאת טעינה");
     });
   }
   function changeMonth(delta){
@@ -669,8 +712,11 @@
 
       if (isWeekend) continue;
 
-      var noteForExport = rec.shortDay ? ("מקוצרת" + (rec.note ? " - " + rec.note : "")) : (rec.note || "");
-      var sf = timeFrac(rec.start), ef = timeFrac(rec.end);
+      var tags = [];
+      if (rec.dayType) tags.push(DAY_TYPE_LABELS[rec.dayType]);
+      if (rec.shortDay) tags.push("מקוצרת");
+      var noteForExport = tags.join(" / ") + (rec.note ? ((tags.length?" - ":"") + rec.note) : "");
+      var sf = rec.dayType ? null : timeFrac(rec.start), ef = rec.dayType ? null : timeFrac(rec.end);
       if (sf !== null) setCell(ws, colLetter(E)+row, {t:"n", v:sf, z:"h:mm"});
       if (ef !== null) setCell(ws, colLetter(F)+row, {t:"n", v:ef, z:"h:mm"});
       if (noteForExport) setCell(ws, colLetter(L)+row, {t:"s", v:noteForExport});
@@ -729,37 +775,6 @@
     XLSX.writeFile(wb, fname);
   }
 
-  // ---------- content-hash self-polling (no build step needed) ----------
-  var baselineHash = null;
-
-  function sha256(text){
-    var enc = new TextEncoder().encode(text);
-    return crypto.subtle.digest("SHA-256", enc).then(function(buf){
-      return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,"0"); }).join("");
-    });
-  }
-  function fetchSelfHash(){
-    return fetch(location.href, {cache:"no-store"}).then(function(r){ return r.text(); }).then(sha256);
-  }
-  function startUpdatePolling(){
-    if (!window.crypto || !window.crypto.subtle) return;
-    fetchSelfHash().then(function(h){ baselineHash = h; });
-    setInterval(check, 60000);
-    document.addEventListener("visibilitychange", function(){
-      if (document.visibilityState === "visible") check();
-    });
-    function check(){
-      if (!baselineHash) return;
-      fetchSelfHash().then(function(h){ if (h !== baselineHash) showUpdateBanner(); }).catch(function(){});
-    }
-  }
-  function showUpdateBanner(){
-    var el = document.getElementById("updateBanner");
-    if (!el.hidden) return;
-    el.hidden = false;
-    document.getElementById("updateReloadBtn").addEventListener("click", function(){ location.reload(); });
-  }
-
   // ---------- live clock ----------
   function tickClock(){
     var now = new Date();
@@ -779,6 +794,9 @@
 
   document.getElementById("todayShortDay").addEventListener("change", function(e){
     setDay(todayKeyNow(), {shortDay: e.target.checked}); render(); saveDay(todayKeyNow());
+  });
+  document.getElementById("todayDayType").addEventListener("change", function(e){
+    setDay(todayKeyNow(), {dayType: e.target.value}); render(); saveDay(todayKeyNow());
   });
   document.getElementById("todayNote").addEventListener("change", function(e){
     setDay(todayKeyNow(), {note: e.target.value}); saveDay(todayKeyNow());
@@ -811,13 +829,17 @@
 
   setInterval(tickClock, 1000);
   tickClock();
-  startUpdatePolling();
+
+  // מציגים את הטבלה (עם ימי החודש) גם לפני/בלי חיבור לסופרבייס, כדי שהתאריכים
+  // תמיד יופיעו - אם אין חיבור, הנתונים פשוט לא יישמרו עד שהחיבור יתוקן.
+  render();
 
   initSupabase().then(function(ok){
-    if (!ok) return;
+    if (!ok) { render(); return; }
     setStatus("טוען…");
     return loadSettings().then(function(){ return loadMonth(state.year, state.month); })
-      .then(function(){ render(); setStatus("מוכן"); });
+      .then(function(){ render(); setStatus("מוכן"); })
+      .catch(function(err){ console.error(err); render(); setStatus("שגיאת טעינה"); });
   });
 })();
 </script>
