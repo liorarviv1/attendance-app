@@ -230,7 +230,7 @@
             <thead>
               <tr>
                 <th>#</th><th>יום</th><th>כניסה</th><th>יציאה</th>
-                <th>בפועל</th><th>יתרה (25%)</th><th>סוג</th><th>תקן</th><th>זכות</th><th>הערות</th>
+                <th>בפועל</th><th>יתרה (25%)</th><th>סוג</th><th>זכות</th><th>הערות</th><th>תקן</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -240,9 +240,9 @@
                 <td id="totWorked">-</td>
                 <td id="totBalance">-</td>
                 <td></td>
-                <td id="totStd">-</td>
                 <td id="totCredit">-</td>
                 <td></td>
+                <td id="totStd">-</td>
               </tr>
             </tfoot>
           </table>
@@ -706,9 +706,9 @@
           '<select class="daytype" data-k="'+key+'" data-f="dayType">'+dtOpts+'</select>' +
           '<label class="shortlbl"><input type="checkbox" data-k="'+key+'" data-f="shortDay" '+(rec.shortDay?"checked":"")+'> מקוצר</label>' +
           '</div></td>' +
-        '<td data-field="std">'+hoursToHM(c.std)+'</td>' +
         '<td class="num '+(c.credit160>0?"pos":(c.credit160<0?"neg":""))+'" data-field="credit">'+(c.credit160 ? Math.round(c.credit160*100)/100 : "-")+'</td>' +
-        '<td><input type="text" data-k="'+key+'" data-f="note" value="'+(rec.note||"").replace(/"/g,"&quot;")+'" placeholder="הערה"></td>';
+        '<td><input type="text" data-k="'+key+'" data-f="note" value="'+(rec.note||"").replace(/"/g,"&quot;")+'" placeholder="הערה"></td>' +
+        '<td data-field="std">'+hoursToHM(c.std)+'</td>';
       tbody.appendChild(tr);
     }
 
