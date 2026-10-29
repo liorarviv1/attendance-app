@@ -799,17 +799,25 @@
   function timeFrac(str){ var h = timeToHours(str); return (h===null) ? null : h/24; }
   function setCell(ws, addr, cell){ ws[addr] = cell; }
 
-  var DAY_TYPE_COLORS = {"vacation":"FFF59D", "sick":"FFCDD2", "holiday":"C8E6C9"};
+  // צבעים מדויקים מהגיליון "תיעוד נוסחאות ועיצוב" שהמשתמש שלח
+  var DAY_TYPE_COLORS = {"vacation":"FFFF00", "sick":"FFCDD2", "holiday":"FF66FF"};
+  var HEADER_FILL = "FFE699";
+  var POS_SUMMARY_FILL = "C6EFCE", POS_SUMMARY_FONT = "006100";
+  var NEG_SUMMARY_FILL = "FFC7CE", NEG_SUMMARY_FONT = "9C0006";
+  var NET_GOOD_FILL = "C6E0B4", NET_BAD_FILL = "FF0000";
 
   function exportExcel(){
     var n = daysInMonth(state.year, state.month);
     var wb = XLSX.utils.book_new();
     var ws = {};
-    var highlights = [];
+    var cellStyles = []; // {addr, fill, font, bold, size}
     var C=3,D=4,E=5,F=6,G=7,H=8,I=9,J=10,K=11,L=12;
 
     setCell(ws, "C1", {t:"s", v:"דוח שעות "+HE_MONTHS[state.month]+" "+state.year});
+    cellStyles.push({addr:"C1", bold:true, size:20});
+
     var headerRow = 3;
+    setCell(ws, colLetter(C)+headerRow, {t:"s", v:""});
     setCell(ws, colLetter(D)+headerRow, {t:"s", v:"תאריך"});
     setCell(ws, colLetter(E)+headerRow, {t:"s", v:"כניסה"});
     setCell(ws, colLetter(F)+headerRow, {t:"s", v:"יציאה "});
@@ -819,6 +827,9 @@
     setCell(ws, colLetter(J)+headerRow, {t:"s", v:"תקן"});
     setCell(ws, colLetter(K)+headerRow, {t:"s", v:"חוסר"});
     setCell(ws, colLetter(L)+headerRow, {t:"s", v:"הערות"});
+    [C,D,E,F,G,H,I,J,K,L].forEach(function(col){
+      cellStyles.push({addr: colLetter(col)+headerRow, fill: HEADER_FILL});
+    });
 
     var startRow = headerRow + 2;
     var firstDataRow = startRow;
@@ -839,7 +850,7 @@
 
       if (rec.dayType){
         setCell(ws, Cc, {t:"s", v:DAY_TYPE_LABELS[rec.dayType]});
-        highlights.push({addr:Cc, color:DAY_TYPE_COLORS[rec.dayType]});
+        cellStyles.push({addr:Cc, fill:DAY_TYPE_COLORS[rec.dayType], bold:true});
       } else {
         setCell(ws, Cc, {t:"s", v:HE_DAYS[dow]});
       }
@@ -900,6 +911,16 @@
     var balanceRow = totalRow+3;
     setCell(ws, colLetter(K)+balanceRow, {t:"n", z:"h:mm:ss AM/PM", f:"IF("+Ht+">"+Kt+","+Ht+"-"+Kt+","+Kt+"-"+Ht+")"});
 
+    // עיצוב שורת הסיכום - בדיוק כמו ב"תיעוד נוסחאות ועיצוב" ששלחת: H/I ירוק
+    // (סיכום חיובי - עודף), K אדום (סיכום שלילי - חוסר), ו-L (המאזן הסופי)
+    // בצבע שתלוי בתוצאה בפועל: ירוק אם יש יותר עודף מחוסר, אדום אם להפך.
+    cellStyles.push({addr:Ht, fill:POS_SUMMARY_FILL, font:POS_SUMMARY_FONT});
+    cellStyles.push({addr:It, fill:POS_SUMMARY_FILL, font:POS_SUMMARY_FONT});
+    cellStyles.push({addr:Kt, fill:NEG_SUMMARY_FILL, font:NEG_SUMMARY_FONT});
+    var mt = computeMonthTotals();
+    var netForColor = (mt.totOvertime * 1.25) - mt.totDeficit;
+    cellStyles.push({addr:Lt, bold:true, fill: netForColor <= 0 ? NET_BAD_FILL : NET_GOOD_FILL});
+
     ws["!ref"] = "A1:"+colLetter(L)+balanceRow;
     ws["!merges"] = [{s:{r:0,c:C-1}, e:{r:1,c:J-1}}];
     ws["!cols"] = [{wch:3},{wch:3},{wch:11},{wch:11},{wch:8},{wch:8},{wch:6},{wch:8},{wch:11},{wch:8},{wch:9},{wch:22}];
@@ -909,8 +930,8 @@
 
     var fname = "דוח_שעות_"+HE_MONTHS[state.month]+"_"+state.year+".xlsx";
 
-    if (highlights.length && window.JSZip){
-      exportWithHighlights(wb, fname, highlights).catch(function(err){
+    if (cellStyles.length && window.JSZip){
+      exportWithHighlights(wb, fname, cellStyles).catch(function(err){
         console.error("highlight export failed, saving without colors", err);
         XLSX.writeFile(wb, fname);
       });
@@ -919,10 +940,10 @@
     }
   }
 
-  // תוספת צבעי רקע לימי חופשה/מחלה/חג בייצוא. ספריית ה-xlsx החינמית לא כותבת
-  // עיצוב תאים (fill/font) דרך ה-API הרגיל שלה, אז בונים את הקובץ כרגיל ואז
+  // תוספת עיצוב תאים (צבעי רקע/גופן/מודגש/גודל) לייצוא. ספריית ה-xlsx החינמית
+  // לא כותבת עיצוב תאים דרך ה-API הרגיל שלה, אז בונים את הקובץ כרגיל ואז
   // מזריקים את העיצוב ישירות ל-XML הפנימי של הקובץ (styles.xml + sheet1.xml).
-  function exportWithHighlights(wb, fname, highlights){
+  function exportWithHighlights(wb, fname, cellStyles){
     var buf = XLSX.write(wb, {bookType:"xlsx", type:"array"});
     return JSZip.loadAsync(buf).then(function(zip){
       var parser = new DOMParser();
@@ -935,23 +956,43 @@
         var cellXfsEl = stylesDoc.getElementsByTagName("cellXfs")[0];
         var fontsEl = stylesDoc.getElementsByTagName("fonts")[0];
 
-        var boldFontId = null;
-        function ensureBoldFont(){
-          if (boldFontId !== null) return boldFontId;
+        var fontCache = {}, fillCache = {}, xfCache = {};
+
+        function ensureFont(bold, color, size){
+          var key = (bold?1:0) + "|" + (color||"") + "|" + (size||"");
+          if (fontCache[key] !== undefined) return fontCache[key];
           var baseFont = fontsEl.getElementsByTagName("font")[0];
           var newFont = baseFont ? baseFont.cloneNode(true) : stylesDoc.createElementNS(ns, "font");
-          var bEl = stylesDoc.createElementNS(ns, "b");
-          newFont.insertBefore(bEl, newFont.firstChild);
+          if (bold){
+            var bEl = stylesDoc.createElementNS(ns, "b");
+            newFont.insertBefore(bEl, newFont.firstChild);
+          }
+          if (size){
+            var szEls = newFont.getElementsByTagName("sz");
+            if (szEls.length) szEls[0].setAttribute("val", String(size));
+          }
+          if (color){
+            var colorEls = newFont.getElementsByTagName("color");
+            if (colorEls.length){
+              colorEls[0].removeAttribute("theme");
+              colorEls[0].removeAttribute("tint");
+              colorEls[0].setAttribute("rgb", "FF" + color);
+            } else {
+              var cEl = stylesDoc.createElementNS(ns, "color");
+              cEl.setAttribute("rgb", "FF" + color);
+              newFont.appendChild(cEl);
+            }
+          }
           fontsEl.appendChild(newFont);
           var count = parseInt(fontsEl.getAttribute("count"), 10);
-          boldFontId = count;
           fontsEl.setAttribute("count", String(count + 1));
-          return boldFontId;
+          fontCache[key] = count;
+          return count;
         }
 
-        var styleIndexForColor = {};
-        function ensureStyleForColor(color){
-          if (styleIndexForColor[color] !== undefined) return styleIndexForColor[color];
+        function ensureFill(color){
+          if (!color) return 0;
+          if (fillCache[color] !== undefined) return fillCache[color];
           var fillEl = stylesDoc.createElementNS(ns, "fill");
           var patternEl = stylesDoc.createElementNS(ns, "patternFill");
           patternEl.setAttribute("patternType", "solid");
@@ -963,28 +1004,34 @@
           patternEl.appendChild(bgEl);
           fillEl.appendChild(patternEl);
           fillsEl.appendChild(fillEl);
-          var fillCount = parseInt(fillsEl.getAttribute("count"), 10);
-          var fillId = fillCount;
-          fillsEl.setAttribute("count", String(fillCount + 1));
+          var count = parseInt(fillsEl.getAttribute("count"), 10);
+          fillsEl.setAttribute("count", String(count + 1));
+          fillCache[color] = count;
+          return count;
+        }
 
+        function ensureXf(spec){
+          var needsFont = spec.bold || spec.font || spec.size;
+          var fontId = needsFont ? ensureFont(!!spec.bold, spec.font, spec.size) : 0;
+          var fillId = ensureFill(spec.fill);
+          var key = fontId + "|" + fillId;
+          if (xfCache[key] !== undefined) return xfCache[key];
           var xfEl = stylesDoc.createElementNS(ns, "xf");
           xfEl.setAttribute("numFmtId", "0");
-          xfEl.setAttribute("fontId", String(ensureBoldFont()));
+          xfEl.setAttribute("fontId", String(fontId));
           xfEl.setAttribute("fillId", String(fillId));
           xfEl.setAttribute("borderId", "0");
           xfEl.setAttribute("xfId", "0");
-          xfEl.setAttribute("applyFill", "1");
-          xfEl.setAttribute("applyFont", "1");
+          if (needsFont) xfEl.setAttribute("applyFont", "1");
+          if (fillId) xfEl.setAttribute("applyFill", "1");
           cellXfsEl.appendChild(xfEl);
-          var xfCount = parseInt(cellXfsEl.getAttribute("count"), 10);
-          var xfIndex = xfCount;
-          cellXfsEl.setAttribute("count", String(xfCount + 1));
-
-          styleIndexForColor[color] = xfIndex;
-          return xfIndex;
+          var count = parseInt(cellXfsEl.getAttribute("count"), 10);
+          cellXfsEl.setAttribute("count", String(count + 1));
+          xfCache[key] = count;
+          return count;
         }
 
-        highlights.forEach(function(h){ h.styleIndex = ensureStyleForColor(h.color); });
+        cellStyles.forEach(function(s){ s.styleIndex = ensureXf(s); });
 
         var newStylesXml = serializer.serializeToString(stylesDoc);
         zip.file("xl/styles.xml", newStylesXml);
@@ -992,9 +1039,9 @@
         var sheetPath = "xl/worksheets/sheet1.xml";
         return zip.file(sheetPath).async("string").then(function(sheetXmlStr){
           var sheetDoc = parser.parseFromString(sheetXmlStr, "application/xml");
-          highlights.forEach(function(h){
-            var cEl = sheetDoc.querySelector('c[r="' + h.addr + '"]');
-            if (cEl) cEl.setAttribute("s", String(h.styleIndex));
+          cellStyles.forEach(function(s){
+            var cEl = sheetDoc.querySelector('c[r="' + s.addr + '"]');
+            if (cEl) cEl.setAttribute("s", String(s.styleIndex));
           });
           var newSheetXml = serializer.serializeToString(sheetDoc);
           zip.file(sheetPath, newSheetXml);
