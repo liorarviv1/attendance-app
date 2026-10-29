@@ -598,6 +598,7 @@
       var isWeekend = (dow === 5 || dow === 6);
 
       var tr = document.createElement("tr");
+      tr.setAttribute("data-row-key", key);
       if (key === tKey) tr.className = "today";
       if (isWeekend) tr.className = (tr.className ? tr.className+" " : "") + "weekend";
       if (dow === 0 && d !== 1) tr.className = (tr.className ? tr.className+" " : "") + "week-start";
@@ -619,46 +620,88 @@
           '<button type="button" class="nowbtn" data-k="'+key+'" data-f="start" '+(isWeekend?"disabled":"")+'>עכשיו</button></div></td>' +
         '<td><div class="timecell"><input type="time" data-k="'+key+'" data-f="end" value="'+rec.end+'" '+(isWeekend?"disabled":"")+'>' +
           '<button type="button" class="nowbtn" data-k="'+key+'" data-f="end" '+(isWeekend?"disabled":"")+'>עכשיו</button></div></td>' +
-        '<td>'+(c.worked!==null ? hoursToHM(c.worked) : "-")+'</td>' +
-        '<td>'+(isWeekend ? "-" : hoursToHM(c.std))+'</td>' +
+        '<td data-field="worked">'+(c.worked!==null ? hoursToHM(c.worked) : "-")+'</td>' +
+        '<td data-field="std">'+(isWeekend ? "-" : hoursToHM(c.std))+'</td>' +
         '<td><input type="checkbox" data-k="'+key+'" data-f="shortDay" '+(rec.shortDay?"checked":"")+' '+(isWeekend?"disabled":"")+'></td>' +
         '<td><select class="daytype" data-k="'+key+'" data-f="dayType" '+(isWeekend?"disabled":"")+'>'+dtOpts+'</select></td>' +
-        '<td class="num '+(c.overtime>0?"pos":"")+'">'+(c.overtime>0 ? hoursToHM(c.overtime) : "-")+'</td>' +
-        '<td class="num '+(c.deficit>0?"neg":"")+'">'+(c.deficit>0 ? hoursToHM(c.deficit) : "-")+'</td>' +
-        '<td class="num '+(c.credit160>0?"pos":(c.credit160<0?"neg":""))+'">'+(c.credit160 ? Math.round(c.credit160*100)/100 : "-")+'</td>' +
+        '<td class="num '+(c.overtime>0?"pos":"")+'" data-field="overtime">'+(c.overtime>0 ? hoursToHM(c.overtime) : "-")+'</td>' +
+        '<td class="num '+(c.deficit>0?"neg":"")+'" data-field="deficit">'+(c.deficit>0 ? hoursToHM(c.deficit) : "-")+'</td>' +
+        '<td class="num '+(c.credit160>0?"pos":(c.credit160<0?"neg":""))+'" data-field="credit">'+(c.credit160 ? Math.round(c.credit160*100)/100 : "-")+'</td>' +
         '<td><input type="text" data-k="'+key+'" data-f="note" value="'+(rec.note||"").replace(/"/g,"&quot;")+'" placeholder="הערה"></td>';
       tbody.appendChild(tr);
     }
 
-    document.getElementById("totWorked").textContent = hoursToHM(totWorked);
-    document.getElementById("totStd").textContent = hoursToHM(totStd);
-    var overWith25 = totOvertime * 1.25;
-    document.getElementById("totOver").textContent = hoursToHM(overWith25);
-    document.getElementById("totDef").textContent = hoursToHM(totDeficit);
-    document.getElementById("totCredit").textContent = Math.round(totCredit*100)/100;
-
-    document.getElementById("statWorked").textContent = hoursToHM(totWorked);
-    document.getElementById("statStd").textContent = hoursToHM(totStd);
-    document.getElementById("statOver").textContent = hoursToHM(overWith25);
-    document.getElementById("statDef").textContent = hoursToHM(totDeficit);
-    document.getElementById("statCredit").textContent = Math.round(totCredit*100)/100;
-    var net = overWith25 - totDeficit;
-    var netEl = document.getElementById("statNet");
-    netEl.textContent = (net>=0?"+":"") + hoursToHM(net);
-    netEl.className = "val " + (net >= 0 ? "good" : "bad");
+    applyTotals({totWorked:totWorked, totStd:totStd, totOvertime:totOvertime, totDeficit:totDeficit, totCredit:totCredit});
 
     bindRowEvents();
   }
 
-  function renderPreserveFocus(){
-    var active = document.activeElement;
-    var k = active && active.getAttribute ? active.getAttribute("data-k") : null;
-    var f = active && active.getAttribute ? active.getAttribute("data-f") : null;
-    render();
-    if (k && f){
-      var again = document.querySelector('#rows [data-k="'+k+'"][data-f="'+f+'"]');
-      if (again) again.focus();
+  function applyTotals(t){
+    var overWith25 = t.totOvertime * 1.25;
+    document.getElementById("totWorked").textContent = hoursToHM(t.totWorked);
+    document.getElementById("totStd").textContent = hoursToHM(t.totStd);
+    document.getElementById("totOver").textContent = hoursToHM(overWith25);
+    document.getElementById("totDef").textContent = hoursToHM(t.totDeficit);
+    document.getElementById("totCredit").textContent = Math.round(t.totCredit*100)/100;
+
+    document.getElementById("statWorked").textContent = hoursToHM(t.totWorked);
+    document.getElementById("statStd").textContent = hoursToHM(t.totStd);
+    document.getElementById("statOver").textContent = hoursToHM(overWith25);
+    document.getElementById("statDef").textContent = hoursToHM(t.totDeficit);
+    document.getElementById("statCredit").textContent = Math.round(t.totCredit*100)/100;
+    var net = overWith25 - t.totDeficit;
+    var netEl = document.getElementById("statNet");
+    netEl.textContent = (net>=0?"+":"") + hoursToHM(net);
+    netEl.className = "val " + (net >= 0 ? "good" : "bad");
+  }
+
+  function computeMonthTotals(){
+    var n = daysInMonth(state.year, state.month);
+    var totWorked=0, totStd=0, totOvertime=0, totDeficit=0, totCredit=0;
+    for (var d=1; d<=n; d++){
+      var dt = new Date(state.year, state.month, d);
+      var dow = dt.getDay();
+      if (dow === 5 || dow === 6) continue;
+      var c = computeRow(getDay(dateKey(state.year, state.month, d)));
+      totWorked += (c.worked||0); totStd += c.std;
+      totOvertime += c.overtime; totDeficit += c.deficit; totCredit += c.credit160;
     }
+    return {totWorked:totWorked, totStd:totStd, totOvertime:totOvertime, totDeficit:totDeficit, totCredit:totCredit};
+  }
+
+  // מעדכנים שורה בודדת בטבלה בלי לבנות מחדש את כל ה-tbody, כדי לא להרוס/לאפס
+  // שדה <input type="time"> שהמשתמש באמצע עריכה שלו (זו הייתה הסיבה שהשדה
+  // "קפץ"/נסגר באמצע הקלדה - בנייה מחדש של כל הטבלה הרסה והחליפה את ה-input
+  // בדיוק בזמן שהיה עליו פוקוס).
+  function recomputeRow(key){
+    var tr = document.querySelector('#rows tr[data-row-key="' + key + '"]');
+    if (!tr){ render(); return; }
+    var rec = getDay(key);
+    var c = computeRow(rec);
+
+    var workedTd = tr.querySelector('[data-field="worked"]');
+    if (workedTd) workedTd.textContent = c.worked !== null ? hoursToHM(c.worked) : "-";
+
+    var stdTd = tr.querySelector('[data-field="std"]');
+    if (stdTd && !tr.classList.contains("weekend")) stdTd.textContent = hoursToHM(c.std);
+
+    var otTd = tr.querySelector('[data-field="overtime"]');
+    if (otTd){
+      otTd.textContent = c.overtime > 0 ? hoursToHM(c.overtime) : "-";
+      otTd.className = "num " + (c.overtime > 0 ? "pos" : "");
+    }
+    var defTd = tr.querySelector('[data-field="deficit"]');
+    if (defTd){
+      defTd.textContent = c.deficit > 0 ? hoursToHM(c.deficit) : "-";
+      defTd.className = "num " + (c.deficit > 0 ? "neg" : "");
+    }
+    var credTd = tr.querySelector('[data-field="credit"]');
+    if (credTd){
+      credTd.textContent = c.credit160 ? Math.round(c.credit160 * 100) / 100 : "-";
+      credTd.className = "num " + (c.credit160 > 0 ? "pos" : (c.credit160 < 0 ? "neg" : ""));
+    }
+
+    applyTotals(computeMonthTotals());
   }
 
   function bindRowEvents(){
@@ -667,15 +710,20 @@
         var key = inp.getAttribute("data-k"), field = inp.getAttribute("data-f");
         var value = inp.type === "checkbox" ? inp.checked : inp.value;
         var patch = {}; patch[field] = value;
-        setDay(key, patch); renderPreserveFocus(); saveDay(key);
+        setDay(key, patch); recomputeRow(key); saveDay(key);
       });
     });
     document.querySelectorAll("#rows .nowbtn").forEach(function(btn){
       btn.addEventListener("click", function(){
         var key = btn.getAttribute("data-k"), field = btn.getAttribute("data-f");
         var now = new Date();
-        var patch = {}; patch[field] = pad(now.getHours())+":"+pad(now.getMinutes());
-        setDay(key, patch); render(); saveDay(key);
+        var val = pad(now.getHours())+":"+pad(now.getMinutes());
+        var patch = {}; patch[field] = val;
+        setDay(key, patch);
+        var inp = document.querySelector('#rows input[data-k="'+key+'"][data-f="'+field+'"]');
+        if (inp) inp.value = val;
+        recomputeRow(key);
+        saveDay(key);
       });
     });
   }
