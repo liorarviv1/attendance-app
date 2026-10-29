@@ -926,13 +926,21 @@
     setCell(ws, colLetter(K)+balanceRow, {t:"n", z:"[h]:mm", f:"IF("+Ht+">"+Kt+","+Ht+"-"+Kt+","+Kt+"-"+Ht+")"});
 
     // עיצוב שורת הסיכום - בדיוק כמו ב"תיעוד נוסחאות ועיצוב" ששלחת: H/I ירוק
-    // (סיכום חיובי - עודף), K אדום (סיכום שלילי - חוסר), ו-L (המאזן הסופי)
-    // בצבע שתלוי בתוצאה בפועל: ירוק אם יש יותר עודף מחוסר, אדום אם להפך.
-    // L מיושר לימין (טקסט שמחושב ע"י TEXT(), לא מספר).
+    // (סיכום חיובי - עודף), K אדום (סיכום שלילי - חוסר).
+    // L מיושר לימין (טקסט שמחושב ע"י TEXT(), לא מספר); הצבע שלו (אדום/ירוק)
+    // לא "אפוי" מראש אלא כלל עיצוב מותנה אמיתי של אקסל (Conditional Formatting),
+    // בדיוק כמו בקובץ המקורי שלך - כדי שיופיע ב"ניהול כללים" ויתעדכן לבד.
     cellStyles.push({addr:Ht, fill:POS_SUMMARY_FILL, font:POS_SUMMARY_FONT});
     cellStyles.push({addr:It, fill:POS_SUMMARY_FILL, font:POS_SUMMARY_FONT});
     cellStyles.push({addr:Kt, fill:NEG_SUMMARY_FILL, font:NEG_SUMMARY_FONT});
-    cellStyles.push({addr:Lt, bold:true, align:"right", fill: netForColor <= 0 ? NET_BAD_FILL : NET_GOOD_FILL});
+    cellStyles.push({addr:Lt, align:"right"});
+    var cfRules = [{
+      sqref: Lt,
+      rules: [
+        {formula: "$"+colLetter(H)+"$"+totalRow+"<=$"+colLetter(K)+"$"+totalRow, fill: NET_BAD_FILL, bold:true},
+        {formula: "$"+colLetter(H)+"$"+totalRow+">$"+colLetter(K)+"$"+totalRow, fill: NET_GOOD_FILL, bold:true}
+      ]
+    }];
 
     ws["!ref"] = "A1:"+colLetter(L)+balanceRow;
     ws["!merges"] = [{s:{r:0,c:C-1}, e:{r:1,c:J-1}}];
@@ -944,7 +952,7 @@
     var fname = "דוח_שעות_"+HE_MONTHS[state.month]+"_"+state.year+".xlsx";
 
     if (cellStyles.length && window.JSZip){
-      exportWithHighlights(wb, fname, cellStyles).catch(function(err){
+      exportWithHighlights(wb, fname, cellStyles, cfRules).catch(function(err){
         console.error("highlight export failed, saving without colors", err);
         XLSX.writeFile(wb, fname);
       });
@@ -956,7 +964,7 @@
   // תוספת עיצוב תאים (צבעי רקע/גופן/מודגש/גודל) לייצוא. ספריית ה-xlsx החינמית
   // לא כותבת עיצוב תאים דרך ה-API הרגיל שלה, אז בונים את הקובץ כרגיל ואז
   // מזריקים את העיצוב ישירות ל-XML הפנימי של הקובץ (styles.xml + sheet1.xml).
-  function exportWithHighlights(wb, fname, cellStyles){
+  function exportWithHighlights(wb, fname, cellStyles, cfRules){
     var buf = XLSX.write(wb, {bookType:"xlsx", type:"array"});
     return JSZip.loadAsync(buf).then(function(zip){
       var parser = new DOMParser();
@@ -1078,6 +1086,64 @@
         }
 
         cellStyles.forEach(function(s){ s.styleIndex = ensureXf(s); });
+
+        // כללי עיצוב מותנה אמיתיים של אקסל (Conditional Formatting) - כדי
+        // שיופיעו ב"ניהול כללים" בדיוק כמו בקובץ המקורי, ויתעדכנו לבד לפי
+        // ההפרש בפועל בין H ל-K, ולא צבע "אפוי" קבוע בזמן הייצוא.
+        if (cfRules && cfRules.length){
+          var sns = sheetDoc.documentElement.namespaceURI;
+          var dxfsEl = stylesDoc.getElementsByTagName("dxfs")[0];
+          if (!dxfsEl){
+            dxfsEl = stylesDoc.createElementNS(ns, "dxfs");
+            dxfsEl.setAttribute("count", "0");
+            stylesDoc.documentElement.appendChild(dxfsEl);
+          }
+          function addDxf(fill, bold){
+            var dxfEl = stylesDoc.createElementNS(ns, "dxf");
+            if (bold){
+              var fontEl = stylesDoc.createElementNS(ns, "font");
+              var bEl = stylesDoc.createElementNS(ns, "b");
+              fontEl.appendChild(bEl);
+              dxfEl.appendChild(fontEl);
+            }
+            if (fill){
+              var fillEl = stylesDoc.createElementNS(ns, "fill");
+              var patternEl = stylesDoc.createElementNS(ns, "patternFill");
+              var bgEl = stylesDoc.createElementNS(ns, "bgColor");
+              bgEl.setAttribute("rgb", "FF" + fill);
+              patternEl.appendChild(bgEl);
+              fillEl.appendChild(patternEl);
+              dxfEl.appendChild(fillEl);
+            }
+            dxfsEl.appendChild(dxfEl);
+            var count = parseInt(dxfsEl.getAttribute("count") || "0", 10);
+            dxfsEl.setAttribute("count", String(count + 1));
+            return count;
+          }
+
+          var mergeCellsEl = sheetDoc.getElementsByTagName("mergeCells")[0];
+          var ignoredErrorsEl = sheetDoc.getElementsByTagName("ignoredErrors")[0];
+          var worksheetEl = sheetDoc.documentElement;
+
+          cfRules.forEach(function(spec){
+            var cfEl = sheetDoc.createElementNS(sns, "conditionalFormatting");
+            cfEl.setAttribute("sqref", spec.sqref);
+            spec.rules.forEach(function(r, i){
+              var dxfId = addDxf(r.fill, r.bold);
+              var ruleEl = sheetDoc.createElementNS(sns, "cfRule");
+              ruleEl.setAttribute("type", "expression");
+              ruleEl.setAttribute("dxfId", String(dxfId));
+              ruleEl.setAttribute("priority", String(i + 1));
+              var formulaEl = sheetDoc.createElementNS(sns, "formula");
+              formulaEl.textContent = r.formula;
+              ruleEl.appendChild(formulaEl);
+              cfEl.appendChild(ruleEl);
+            });
+            if (mergeCellsEl) worksheetEl.insertBefore(cfEl, mergeCellsEl.nextSibling);
+            else if (ignoredErrorsEl) worksheetEl.insertBefore(cfEl, ignoredErrorsEl);
+            else worksheetEl.appendChild(cfEl);
+          });
+        }
 
         var newStylesXml = serializer.serializeToString(stylesDoc);
         zip.file("xl/styles.xml", newStylesXml);
