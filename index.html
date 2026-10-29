@@ -89,42 +89,35 @@
   .standard-row{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:10px; font-size:13px; color:var(--muted);}
   .standard-row label{display:flex; align-items:center; gap:6px; color:var(--ink);}
   .standard-row input[type=number]{width:60px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink);}
-  table{width:100%; border-collapse:collapse; font-size:13.5px; table-layout:fixed;}
+  table{border-collapse:collapse; font-size:14px;}
   thead th{
-    background:var(--head); padding:8px 4px; border-bottom:1px solid var(--line);
-    font-weight:600; white-space:nowrap; position:sticky; top:0; font-size:12px;
+    background:var(--head); padding:8px 8px; border-bottom:1px solid var(--line);
+    font-weight:600; white-space:nowrap; position:sticky; top:0; font-size:13px;
   }
-  tbody td{padding:5px 3px; border-bottom:1px solid var(--line); text-align:center; vertical-align:middle; overflow:hidden;}
+  tbody td{padding:6px 7px; border-bottom:1px solid var(--line); text-align:center; vertical-align:middle; white-space:nowrap;}
   tbody tr.today{background:color-mix(in srgb, var(--accent) 10%, transparent);}
   tbody tr.week-start td{border-top:2px solid var(--accent);}
-  th:first-child, td.numcol{width:22px;}
   select.daytype{
-    border:1px solid var(--line); border-radius:7px; padding:4px 2px;
-    background:var(--card); color:var(--ink); width:100%; font-size:11px;
+    border:1px solid var(--line); border-radius:7px; padding:5px 4px;
+    background:var(--card); color:var(--ink); width:100%; font-size:12.5px;
   }
   input[type=time], input[type=text]{
-    border:1px solid var(--line); border-radius:7px; padding:4px 2px;
-    background:var(--card); color:var(--ink); width:100%; font-size:12px; text-align:center;
+    border:1px solid var(--line); border-radius:7px; padding:5px 6px;
+    background:var(--card); color:var(--ink); font-size:14px; text-align:center;
   }
-  input[type=text]{text-align:right; min-width:0;}
-  .timecell{display:flex; flex-direction:column; gap:3px; align-items:stretch; min-width:0;}
-  .typecell{display:flex; flex-direction:column; gap:3px; align-items:stretch; min-width:0;}
-  .shortlbl{display:flex; align-items:center; justify-content:center; gap:3px; font-size:10.5px; color:var(--muted); white-space:nowrap;}
-  .shortlbl input[type=checkbox]{width:13px; height:13px;}
-  .nowbtn{
-    border:1px solid var(--accent); background:transparent; color:var(--accent);
-    border-radius:6px; padding:2px 4px; font-size:10px; cursor:pointer; line-height:1.3;
-  }
-  .nowbtn:hover{background:var(--accent); color:var(--accent-ink);}
-  .nowbtn:disabled{opacity:.35; cursor:default;}
+  input[type=time]{min-width:90px;}
+  input[type=text]{text-align:right; min-width:100px;}
+  .typecell{display:flex; flex-direction:column; gap:4px; align-items:stretch; min-width:90px;}
+  .shortlbl{display:flex; align-items:center; justify-content:center; gap:4px; font-size:12px; color:var(--muted); white-space:nowrap;}
+  .shortlbl input[type=checkbox]{width:15px; height:15px;}
   input[type=checkbox]{width:16px; height:16px; cursor:pointer;}
-  td.daycol{white-space:nowrap; font-weight:600; font-size:12px;}
-  td.numcol{color:var(--muted); font-size:11px;}
+  td.daycol{white-space:nowrap; font-weight:600;}
+  td.numcol{color:var(--muted);}
   td.num.pos{color:var(--good); font-weight:600;}
   td.num.neg{color:var(--bad); font-weight:600;}
-  tfoot td{padding:8px 3px; font-weight:700; border-top:2px solid var(--line); text-align:center; font-size:12px;}
+  tfoot td{padding:8px 7px; font-weight:700; border-top:2px solid var(--line); text-align:center;}
   tfoot td.pos{color:var(--good);} tfoot td.neg{color:var(--bad);}
-  .table-scroll{overflow-x:auto;}
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
   .totals{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
   .stat{flex:1; min-width:130px; background:var(--head); border-radius:10px; padding:10px 12px;}
   .stat .lbl{font-size:12px; color:var(--muted);}
@@ -140,14 +133,7 @@
   .status{font-size:12px; color:var(--muted); align-self:center; margin-right:auto;}
   footer{text-align:center; color:var(--muted); font-size:12px; margin-top:18px;}
   @media (max-width:640px){
-    .card{padding:8px;}
-    table{font-size:11px;}
-    thead th{padding:5px 2px; font-size:10.5px;}
-    tbody td{padding:4px 2px;}
-    input[type=time], input[type=text], select.daytype{font-size:10.5px; padding:3px 2px;}
-    .nowbtn{font-size:9px; padding:1px 2px;}
-    .shortlbl{font-size:9.5px;}
-    td.daycol{font-size:10.5px;}
+    .card{padding:10px;}
     .clock{font-size:34px;}
   }
 </style>
@@ -696,10 +682,8 @@
       tr.innerHTML =
         '<td class="numcol">'+dayNum+'</td>' +
         '<td class="daycol">'+HE_DAYS_SHORT[dow]+' '+pad(d)+'/'+pad(state.month+1)+'</td>' +
-        '<td><div class="timecell"><input type="time" data-k="'+key+'" data-f="start" value="'+rec.start+'">' +
-          '<button type="button" class="nowbtn" data-k="'+key+'" data-f="start">עכשיו</button></div></td>' +
-        '<td><div class="timecell"><input type="time" data-k="'+key+'" data-f="end" value="'+rec.end+'">' +
-          '<button type="button" class="nowbtn" data-k="'+key+'" data-f="end">עכשיו</button></div></td>' +
+        '<td><input type="time" data-k="'+key+'" data-f="start" value="'+rec.start+'"></td>' +
+        '<td><input type="time" data-k="'+key+'" data-f="end" value="'+rec.end+'"></td>' +
         '<td data-field="worked">'+(c.worked!==null ? hoursToHM(c.worked) : "-")+'</td>' +
         '<td class="num '+balanceCls+'" data-field="balance">'+balanceTxt+'</td>' +
         '<td><div class="typecell">' +
@@ -789,19 +773,6 @@
         var value = inp.type === "checkbox" ? inp.checked : inp.value;
         var patch = {}; patch[field] = value;
         setDay(key, patch); recomputeRow(key); saveDay(key);
-      });
-    });
-    document.querySelectorAll("#rows .nowbtn").forEach(function(btn){
-      btn.addEventListener("click", function(){
-        var key = btn.getAttribute("data-k"), field = btn.getAttribute("data-f");
-        var now = new Date();
-        var val = pad(now.getHours())+":"+pad(now.getMinutes());
-        var patch = {}; patch[field] = val;
-        setDay(key, patch);
-        var inp = document.querySelector('#rows input[data-k="'+key+'"][data-f="'+field+'"]');
-        if (inp) inp.value = val;
-        recomputeRow(key);
-        saveDay(key);
       });
     });
   }
