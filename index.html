@@ -276,7 +276,7 @@
 
   // מספר גרסה - משתנה בכל פעם שמעלים קובץ חדש, כדי שהבדיקה האוטומטית למטה
   // (checkForUpdate) תדע אם יש גרסה חדשה יותר מזו שהדפדפן שמר בזיכרון המטמון.
-  var BUILD_VERSION = "2026-10-29-02";
+  var BUILD_VERSION = "2026-10-29-03";
 
   var HE_DAYS = ["יום ראשון","יום שני","יום שלישי","יום רביעי","יום חמישי","יום שישי","שבת"];
   var HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
@@ -1229,7 +1229,7 @@
 
   // רענון גיבוי כל כמה שניות ובכל פעם שחוזרים למסך/לטאב - גם אם ה-realtime
   // מפספס אירוע (למשל כי המכשיר היה רדום), זה תמיד יתעדכן תוך כמה שניות.
-  setInterval(function(){ if (!document.hidden) scheduleReload(); }, 8000);
+  setInterval(function(){ if (!document.hidden) scheduleReload(); }, 25000);
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) scheduleReload(); });
 
   // ---------- עדכון גרסה אוטומטי, בלי שום הודעה/באנר ----------
@@ -1254,7 +1254,7 @@
     } catch(e){}
   }
   checkForUpdate();
-  setInterval(function(){ if (!document.hidden) checkForUpdate(); }, 300000);
+  setInterval(function(){ if (!document.hidden) checkForUpdate(); }, 120000);
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) checkForUpdate(); });
 
   // מציגים את הטבלה (עם ימי החודש) גם לפני/בלי חיבור לסופרבייס, כדי שהתאריכים
