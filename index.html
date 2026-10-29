@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>שעון נוכחות</title>
 <style>
   :root{
@@ -86,41 +89,36 @@
   .standard-row{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:10px; font-size:13px; color:var(--muted);}
   .standard-row label{display:flex; align-items:center; gap:6px; color:var(--ink);}
   .standard-row input[type=number]{width:60px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink);}
-  table{width:100%; border-collapse:collapse; font-size:13.5px; table-layout:fixed;}
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
   thead th{
-    background:var(--head); padding:8px 4px; border-bottom:1px solid var(--line);
-    font-weight:600; white-space:nowrap; position:sticky; top:0; font-size:12px;
+    background:var(--head); padding:8px 6px; border-bottom:1px solid var(--line);
+    font-weight:600; white-space:nowrap; position:sticky; top:0;
   }
-  tbody td{padding:5px 3px; border-bottom:1px solid var(--line); text-align:center; vertical-align:middle; overflow:hidden;}
+  tbody td{padding:5px 6px; border-bottom:1px solid var(--line); text-align:center; vertical-align:middle;}
+  tbody tr.weekend{opacity:.45;}
   tbody tr.today{background:color-mix(in srgb, var(--accent) 10%, transparent);}
   tbody tr.week-start td{border-top:2px solid var(--accent);}
-  th:first-child, td.numcol{width:22px;}
   select.daytype{
-    border:1px solid var(--line); border-radius:7px; padding:4px 2px;
-    background:var(--card); color:var(--ink); width:100%; font-size:11px;
+    border:1px solid var(--line); border-radius:7px; padding:5px 4px;
+    background:var(--card); color:var(--ink); width:100%; font-size:12.5px;
   }
   input[type=time], input[type=text]{
-    border:1px solid var(--line); border-radius:7px; padding:4px 2px;
-    background:var(--card); color:var(--ink); width:100%; font-size:12px; text-align:center;
+    border:1px solid var(--line); border-radius:7px; padding:5px 4px;
+    background:var(--card); color:var(--ink); width:100%; font-size:13px; text-align:center;
   }
-  input[type=text]{text-align:right; min-width:0;}
-  .timecell{display:flex; flex-direction:column; gap:3px; align-items:stretch; min-width:0;}
-  .typecell{display:flex; flex-direction:column; gap:3px; align-items:stretch; min-width:0;}
-  .shortlbl{display:flex; align-items:center; justify-content:center; gap:3px; font-size:10.5px; color:var(--muted); white-space:nowrap;}
-  .shortlbl input[type=checkbox]{width:13px; height:13px;}
+  input[type=text]{text-align:right; min-width:90px;}
+  .timecell{display:flex; flex-direction:column; gap:3px; align-items:stretch; min-width:72px;}
   .nowbtn{
     border:1px solid var(--accent); background:transparent; color:var(--accent);
-    border-radius:6px; padding:2px 4px; font-size:10px; cursor:pointer; line-height:1.3;
+    border-radius:6px; padding:2px 4px; font-size:11px; cursor:pointer; line-height:1.3;
   }
   .nowbtn:hover{background:var(--accent); color:var(--accent-ink);}
   .nowbtn:disabled{opacity:.35; cursor:default;}
   input[type=checkbox]{width:16px; height:16px; cursor:pointer;}
-  td.daycol{white-space:nowrap; font-weight:600; font-size:12px;}
-  td.numcol{color:var(--muted); font-size:11px;}
+  td.daycol{white-space:nowrap; font-weight:600;}
   td.num.pos{color:var(--good); font-weight:600;}
   td.num.neg{color:var(--bad); font-weight:600;}
-  tfoot td{padding:8px 3px; font-weight:700; border-top:2px solid var(--line); text-align:center; font-size:12px;}
-  tfoot td.pos{color:var(--good);} tfoot td.neg{color:var(--bad);}
+  tfoot td{padding:8px 6px; font-weight:700; border-top:2px solid var(--line); text-align:center;}
   .table-scroll{overflow-x:auto;}
   .totals{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
   .stat{flex:1; min-width:130px; background:var(--head); border-radius:10px; padding:10px 12px;}
@@ -137,14 +135,10 @@
   .status{font-size:12px; color:var(--muted); align-self:center; margin-right:auto;}
   footer{text-align:center; color:var(--muted); font-size:12px; margin-top:18px;}
   @media (max-width:640px){
-    .card{padding:8px;}
-    table{font-size:11px;}
-    thead th{padding:5px 2px; font-size:10.5px;}
-    tbody td{padding:4px 2px;}
-    input[type=time], input[type=text], select.daytype{font-size:10.5px; padding:3px 2px;}
-    .nowbtn{font-size:9px; padding:1px 2px;}
-    .shortlbl{font-size:9.5px;}
-    td.daycol{font-size:10.5px;}
+    .card{padding:10px;}
+    table{font-size:12px;}
+    thead th, tbody td{padding:4px 3px;}
+    input[type=text]{min-width:60px;}
     .clock{font-size:34px;}
   }
 </style>
@@ -226,17 +220,21 @@
           <table>
             <thead>
               <tr>
-                <th>#</th><th>יום</th><th>כניסה</th><th>יציאה</th>
-                <th>בפועל / תקן</th><th>סוג</th><th>יתרה</th><th>זכות</th><th>הערות</th>
+                <th>יום</th><th>תאריך</th><th>כניסה</th><th>יציאה</th>
+                <th>שעות בפועל</th><th>תקן</th><th>מקוצר</th><th>סוג יום</th>
+                <th>עודף (1.25)</th><th>חוסר</th><th>כ.60 = 1.7</th><th>הערות</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
             <tfoot>
               <tr>
                 <td colspan="4">סה"כ</td>
-                <td id="totWorkedStd">-</td>
+                <td id="totWorked">-</td>
+                <td id="totStd">-</td>
                 <td></td>
-                <td id="totBalance">-</td>
+                <td></td>
+                <td id="totOver">-</td>
+                <td id="totDef">-</td>
                 <td id="totCredit">-</td>
                 <td></td>
               </tr>
@@ -261,7 +259,7 @@
       </div>
     </div>
 
-    <footer>הנתונים נשמרים ב-Supabase.</footer>
+    <footer>הנתונים נשמרים ב-Supabase. <span id="versionLabel"></span></footer>
   </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -279,8 +277,11 @@
   var SUPABASE_ANON_KEY = "sb_publishable_oKjkaD8lMQsXvxCZviBwmQ_zy5xFkl7";
   // ============================================================
 
+  // מספר גרסה - משתנה בכל פעם שמעלים קובץ חדש, כדי שהבדיקה האוטומטית למטה
+  // (checkForUpdate) תדע אם יש גרסה חדשה יותר מזו שהדפדפן שמר בזיכרון המטמון.
+  var BUILD_VERSION = "2026-10-29-04";
+
   var HE_DAYS = ["יום ראשון","יום שני","יום שלישי","יום רביעי","יום חמישי","יום שישי","שבת"];
-  var HE_DAYS_SHORT = ["א'","ב'","ג'","ד'","ה'","ו'","ש'"];
   var HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
 
   var state = {
@@ -655,47 +656,43 @@
     var tKey = todayKeyNow();
 
     var totWorked=0, totStd=0, totOvertime=0, totDeficit=0, totCredit=0;
-    var dayNum = 0;
 
     for (var d=1; d<=n; d++){
       var dt = new Date(state.year, state.month, d);
       var dow = dt.getDay();
-      if (dow === 5 || dow === 6) continue; // שישי/שבת לא מקבלים שורה בטבלה בכלל
-
       var key = dateKey(state.year, state.month, d);
       var rec = getDay(key);
-      dayNum++;
+      var isWeekend = (dow === 5 || dow === 6);
 
       var tr = document.createElement("tr");
       tr.setAttribute("data-row-key", key);
       if (key === tKey) tr.className = "today";
+      if (isWeekend) tr.className = (tr.className ? tr.className+" " : "") + "weekend";
       if (dow === 0 && d !== 1) tr.className = (tr.className ? tr.className+" " : "") + "week-start";
 
       var c = computeRow(rec);
-      totWorked += (c.worked||0); totStd += c.std;
-      totOvertime += c.overtime; totDeficit += c.deficit; totCredit += c.credit160;
+      if (!isWeekend){
+        totWorked += (c.worked||0); totStd += c.std;
+        totOvertime += c.overtime; totDeficit += c.deficit; totCredit += c.credit160;
+      }
 
       var dtOpts = ["", "vacation", "sick", "holiday"].map(function(v){
         return '<option value="'+v+'" '+(rec.dayType===v?"selected":"")+'>'+DAY_TYPE_LABELS[v]+'</option>';
       }).join("");
 
-      var balanceVal = c.overtime > 0 ? c.overtime : (c.deficit > 0 ? -c.deficit : 0);
-      var balanceCls = balanceVal > 0 ? "pos" : (balanceVal < 0 ? "neg" : "");
-      var balanceTxt = balanceVal === 0 ? "-" : (balanceVal > 0 ? "+" : "-") + hoursToHM(Math.abs(balanceVal));
-
       tr.innerHTML =
-        '<td class="numcol">'+dayNum+'</td>' +
-        '<td class="daycol">'+HE_DAYS_SHORT[dow]+' '+pad(d)+'/'+pad(state.month+1)+'</td>' +
-        '<td><div class="timecell"><input type="time" data-k="'+key+'" data-f="start" value="'+rec.start+'">' +
-          '<button type="button" class="nowbtn" data-k="'+key+'" data-f="start">עכשיו</button></div></td>' +
-        '<td><div class="timecell"><input type="time" data-k="'+key+'" data-f="end" value="'+rec.end+'">' +
-          '<button type="button" class="nowbtn" data-k="'+key+'" data-f="end">עכשיו</button></div></td>' +
-        '<td data-field="workedstd">'+(c.worked!==null ? hoursToHM(c.worked) : "-")+' / '+hoursToHM(c.std)+'</td>' +
-        '<td><div class="typecell">' +
-          '<select class="daytype" data-k="'+key+'" data-f="dayType">'+dtOpts+'</select>' +
-          '<label class="shortlbl"><input type="checkbox" data-k="'+key+'" data-f="shortDay" '+(rec.shortDay?"checked":"")+'> מקוצר</label>' +
-          '</div></td>' +
-        '<td class="num '+balanceCls+'" data-field="balance">'+balanceTxt+'</td>' +
+        '<td class="daycol">'+HE_DAYS[dow]+'</td>' +
+        '<td>'+pad(d)+'/'+pad(state.month+1)+'</td>' +
+        '<td><div class="timecell"><input type="time" data-k="'+key+'" data-f="start" value="'+rec.start+'" '+(isWeekend?"disabled":"")+'>' +
+          '<button type="button" class="nowbtn" data-k="'+key+'" data-f="start" '+(isWeekend?"disabled":"")+'>עכשיו</button></div></td>' +
+        '<td><div class="timecell"><input type="time" data-k="'+key+'" data-f="end" value="'+rec.end+'" '+(isWeekend?"disabled":"")+'>' +
+          '<button type="button" class="nowbtn" data-k="'+key+'" data-f="end" '+(isWeekend?"disabled":"")+'>עכשיו</button></div></td>' +
+        '<td data-field="worked">'+(c.worked!==null ? hoursToHM(c.worked) : "-")+'</td>' +
+        '<td data-field="std">'+(isWeekend ? "-" : hoursToHM(c.std))+'</td>' +
+        '<td><input type="checkbox" data-k="'+key+'" data-f="shortDay" '+(rec.shortDay?"checked":"")+' '+(isWeekend?"disabled":"")+'></td>' +
+        '<td><select class="daytype" data-k="'+key+'" data-f="dayType" '+(isWeekend?"disabled":"")+'>'+dtOpts+'</select></td>' +
+        '<td class="num '+(c.overtime>0?"pos":"")+'" data-field="overtime">'+(c.overtime>0 ? hoursToHM(c.overtime) : "-")+'</td>' +
+        '<td class="num '+(c.deficit>0?"neg":"")+'" data-field="deficit">'+(c.deficit>0 ? hoursToHM(c.deficit) : "-")+'</td>' +
         '<td class="num '+(c.credit160>0?"pos":(c.credit160<0?"neg":""))+'" data-field="credit">'+(c.credit160 ? Math.round(c.credit160*100)/100 : "-")+'</td>' +
         '<td><input type="text" data-k="'+key+'" data-f="note" value="'+(rec.note||"").replace(/"/g,"&quot;")+'" placeholder="הערה"></td>';
       tbody.appendChild(tr);
@@ -708,11 +705,10 @@
 
   function applyTotals(t){
     var overWith25 = t.totOvertime * 1.25;
-    var net = overWith25 - t.totDeficit;
-    document.getElementById("totWorkedStd").textContent = hoursToHM(t.totWorked) + " / " + hoursToHM(t.totStd);
-    var totBalanceEl = document.getElementById("totBalance");
-    totBalanceEl.textContent = (net>=0?"+":"") + hoursToHM(net);
-    totBalanceEl.className = net >= 0 ? "pos" : "neg";
+    document.getElementById("totWorked").textContent = hoursToHM(t.totWorked);
+    document.getElementById("totStd").textContent = hoursToHM(t.totStd);
+    document.getElementById("totOver").textContent = hoursToHM(overWith25);
+    document.getElementById("totDef").textContent = hoursToHM(t.totDeficit);
     document.getElementById("totCredit").textContent = Math.round(t.totCredit*100)/100;
 
     document.getElementById("statWorked").textContent = hoursToHM(t.totWorked);
@@ -720,6 +716,7 @@
     document.getElementById("statOver").textContent = hoursToHM(overWith25);
     document.getElementById("statDef").textContent = hoursToHM(t.totDeficit);
     document.getElementById("statCredit").textContent = Math.round(t.totCredit*100)/100;
+    var net = overWith25 - t.totDeficit;
     var netEl = document.getElementById("statNet");
     netEl.textContent = (net>=0?"+":"") + hoursToHM(net);
     netEl.className = "val " + (net >= 0 ? "good" : "bad");
@@ -749,14 +746,21 @@
     var rec = getDay(key);
     var c = computeRow(rec);
 
-    var workedStdTd = tr.querySelector('[data-field="workedstd"]');
-    if (workedStdTd) workedStdTd.textContent = (c.worked !== null ? hoursToHM(c.worked) : "-") + " / " + hoursToHM(c.std);
+    var workedTd = tr.querySelector('[data-field="worked"]');
+    if (workedTd) workedTd.textContent = c.worked !== null ? hoursToHM(c.worked) : "-";
 
-    var balanceTd = tr.querySelector('[data-field="balance"]');
-    if (balanceTd){
-      var balanceVal = c.overtime > 0 ? c.overtime : (c.deficit > 0 ? -c.deficit : 0);
-      balanceTd.textContent = balanceVal === 0 ? "-" : (balanceVal > 0 ? "+" : "-") + hoursToHM(Math.abs(balanceVal));
-      balanceTd.className = "num " + (balanceVal > 0 ? "pos" : (balanceVal < 0 ? "neg" : ""));
+    var stdTd = tr.querySelector('[data-field="std"]');
+    if (stdTd && !tr.classList.contains("weekend")) stdTd.textContent = hoursToHM(c.std);
+
+    var otTd = tr.querySelector('[data-field="overtime"]');
+    if (otTd){
+      otTd.textContent = c.overtime > 0 ? hoursToHM(c.overtime) : "-";
+      otTd.className = "num " + (c.overtime > 0 ? "pos" : "");
+    }
+    var defTd = tr.querySelector('[data-field="deficit"]');
+    if (defTd){
+      defTd.textContent = c.deficit > 0 ? hoursToHM(c.deficit) : "-";
+      defTd.className = "num " + (c.deficit > 0 ? "neg" : "");
     }
     var credTd = tr.querySelector('[data-field="credit"]');
     if (credTd){
@@ -1228,8 +1232,33 @@
 
   // רענון גיבוי כל כמה שניות ובכל פעם שחוזרים למסך/לטאב - גם אם ה-realtime
   // מפספס אירוע (למשל כי המכשיר היה רדום), זה תמיד יתעדכן תוך כמה שניות.
-  setInterval(function(){ if (!document.hidden) scheduleReload(); }, 8000);
+  setInterval(function(){ if (!document.hidden) scheduleReload(); }, 25000);
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) scheduleReload(); });
+
+  // ---------- עדכון גרסה אוטומטי, בלי שום הודעה/באנר ----------
+  // הדפדפן (בעיקר בטלפון) נוטה לשמור בזיכרון מטמון עותק ישן של הקובץ, ולכן
+  // אחרי שמעלים גרסה חדשה ל-GitHub זה לא "נתפס" אוטומטית. כאן, ברקע ובלי
+  // להציג כלום למשתמש, שולפים את אותו הקובץ ישירות מהשרת (cache:"no-store"
+  // כדי לעקוף את המטמון), ואם הגרסה שם שונה מהגרסה שרצה כרגע - טוענים
+  // מחדש פעם אחת עם פרמטר שמבטל קאש, כדי שהדף יתעדכן לבד תוך כמה שניות.
+  function checkForUpdate(){
+    try {
+      fetch(location.pathname + "?_=" + Date.now(), {cache:"no-store"})
+        .then(function(res){ return res.ok ? res.text() : null; })
+        .then(function(text){
+          if (!text) return;
+          var m = text.match(/BUILD_VERSION\s*=\s*"([^"]+)"/);
+          if (!m || m[1] === BUILD_VERSION) return;
+          if (sessionStorage.getItem("justUpdatedTo") === m[1]) return; // מניעת לולאת רענון
+          sessionStorage.setItem("justUpdatedTo", m[1]);
+          location.href = location.pathname + "?v=" + encodeURIComponent(m[1]);
+        })
+        .catch(function(){});
+    } catch(e){}
+  }
+  checkForUpdate();
+  setInterval(function(){ if (!document.hidden) checkForUpdate(); }, 120000);
+  document.addEventListener("visibilitychange", function(){ if (!document.hidden) checkForUpdate(); });
 
   // מציגים את הטבלה (עם ימי החודש) גם לפני/בלי חיבור לסופרבייס, כדי שהתאריכים
   // תמיד יופיעו - אם אין חיבור, הנתונים פשוט לא יישמרו עד שהחיבור יתוקן.
