@@ -316,6 +316,16 @@
     var parts = str.split(":");
     return pad(parseInt(parts[0],10)) + ":" + pad(parseInt(parts[1],10));
   }
+  // ערך מחרוזת hh:mm עם סימן מינוס, בדיוק כמו TEXT(...,"hh:mm") עם IF לסימן -
+  // (משמש רק כערך מטמון לתא נוסחה לפני שאקסל מחשב בעצמו).
+  function netTextHHMM(hrs){
+    var sign = hrs < 0 ? "-" : "";
+    hrs = Math.abs(hrs);
+    var h = Math.floor(hrs);
+    var m = Math.round((hrs - h) * 60);
+    if (m === 60){ m = 0; h += 1; }
+    return sign + pad(h) + ":" + pad(m);
+  }
 
   var DAY_TYPE_LABELS = {"":"רגיל", "vacation":"חופשה", "sick":"מחלה", "holiday":"חג"};
 
@@ -901,11 +911,15 @@
     var Krange = colLetter(K)+firstDataRow+":"+colLetter(K)+lastDataRow;
     var Ht=colLetter(H)+totalRow, It=colLetter(I)+totalRow, Kt=colLetter(K)+totalRow, Lt=colLetter(L)+totalRow;
 
+    var mt = computeMonthTotals();
+    var netForColor = (mt.totOvertime * 1.25) - mt.totDeficit;
+
     setCell(ws, colLetter(C)+totalRow, {t:"s", v:'סה"כ'});
     setCell(ws, Ht, {t:"n", z:"[h]:mm", f:"SUM("+Hrange+")*0.25+SUM("+Hrange+")"});
     setCell(ws, It, {t:"n", f:"(SUMIF("+Irange+',">0")*1.25)+SUMIF('+Irange+',"<0")'});
     setCell(ws, Kt, {t:"n", z:"[h]:mm", f:"SUM("+Krange+")"});
-    setCell(ws, Lt, {t:"n", z:"[h]:mm", f:"SUM("+Ht+"-"+Kt+")"});
+    var ltFormula = 'IF('+Ht+'-'+Kt+'<0,"-"&TEXT(ABS('+Ht+'-'+Kt+'),"hh:mm"),TEXT('+Ht+'-'+Kt+',"hh:mm"))';
+    setCell(ws, Lt, {t:"str", f: ltFormula, v: netTextHHMM(netForColor)});
     setCell(ws, colLetter(H)+(totalRow+1), {t:"s", v:'כולל 25%'});
     setCell(ws, colLetter(L)+(totalRow+1), {t:"s", v:'כמה נשאר עודף/חוסר'});
     var balanceRow = totalRow+3;
@@ -914,12 +928,11 @@
     // עיצוב שורת הסיכום - בדיוק כמו ב"תיעוד נוסחאות ועיצוב" ששלחת: H/I ירוק
     // (סיכום חיובי - עודף), K אדום (סיכום שלילי - חוסר), ו-L (המאזן הסופי)
     // בצבע שתלוי בתוצאה בפועל: ירוק אם יש יותר עודף מחוסר, אדום אם להפך.
+    // L מיושר לימין (טקסט שמחושב ע"י TEXT(), לא מספר).
     cellStyles.push({addr:Ht, fill:POS_SUMMARY_FILL, font:POS_SUMMARY_FONT});
     cellStyles.push({addr:It, fill:POS_SUMMARY_FILL, font:POS_SUMMARY_FONT});
     cellStyles.push({addr:Kt, fill:NEG_SUMMARY_FILL, font:NEG_SUMMARY_FONT});
-    var mt = computeMonthTotals();
-    var netForColor = (mt.totOvertime * 1.25) - mt.totDeficit;
-    cellStyles.push({addr:Lt, bold:true, fill: netForColor <= 0 ? NET_BAD_FILL : NET_GOOD_FILL});
+    cellStyles.push({addr:Lt, bold:true, align:"right", fill: netForColor <= 0 ? NET_BAD_FILL : NET_GOOD_FILL});
 
     ws["!ref"] = "A1:"+colLetter(L)+balanceRow;
     ws["!merges"] = [{s:{r:0,c:C-1}, e:{r:1,c:J-1}}];
@@ -1039,7 +1052,8 @@
           var fontId = needsFont ? ensureFont(!!spec.bold, spec.font, spec.size) : 0;
           var fillId = ensureFill(spec.fill);
           var numFmtId = spec.numFmtId || 0;
-          var key = fontId + "|" + fillId + "|" + numFmtId;
+          var align = spec.align || "";
+          var key = fontId + "|" + fillId + "|" + numFmtId + "|" + align;
           if (xfCache[key] !== undefined) return xfCache[key];
           var xfEl = stylesDoc.createElementNS(ns, "xf");
           xfEl.setAttribute("numFmtId", String(numFmtId));
@@ -1050,6 +1064,12 @@
           if (needsFont) xfEl.setAttribute("applyFont", "1");
           if (fillId) xfEl.setAttribute("applyFill", "1");
           if (numFmtId) xfEl.setAttribute("applyNumberFormat", "1");
+          if (align){
+            xfEl.setAttribute("applyAlignment", "1");
+            var alignEl = stylesDoc.createElementNS(ns, "alignment");
+            alignEl.setAttribute("horizontal", align);
+            xfEl.appendChild(alignEl);
+          }
           cellXfsEl.appendChild(xfEl);
           var count = parseInt(cellXfsEl.getAttribute("count"), 10);
           cellXfsEl.setAttribute("count", String(count + 1));
