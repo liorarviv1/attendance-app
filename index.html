@@ -162,6 +162,8 @@
         <div class="clock" id="liveClock">--:--:--</div>
         <div class="today-status" id="todayStatus"></div>
 
+        <div id="missingWarning" class="hidden" style="background:var(--warn); color:#1c2230; border-radius:10px; padding:10px 12px; margin-bottom:12px; font-size:13px; font-weight:600; cursor:pointer; text-align:center;"></div>
+
         <div class="big-action">
           <button class="btn-xl start" id="startBtn">▶ התחל יום עבודה</button>
           <button class="btn-xl stop hidden" id="stopBtn">⏹ סיים יום עבודה</button>
@@ -437,8 +439,23 @@
     clearTimeout(reloadTimer);
     reloadTimer = setTimeout(doReload, 300);
   }
+  function isUserEditingNow(){
+    var a = document.activeElement;
+    if (!a || a === document.body) return false;
+    if (a.closest && a.closest("#rows")) return true;
+    if (a.closest && a.closest("#view-today")) return (a.tagName === "INPUT" || a.tagName === "SELECT");
+    return false;
+  }
+
   function doReload(){
     if (!supabase) return;
+    if (isUserEditingNow()){
+      // לא מרעננים את כל הטבלה באמצע עריכה (גם אם השינוי הגיע בחזרה מ-Supabase
+      // בעקבות שמירה שלנו עצמנו) - מחכים שהמשתמש יסיים ומנסים שוב בעוד שנייה.
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(doReload, 1000);
+      return;
+    }
     if (reloadInFlight){ reloadAgain = true; return; }
     reloadInFlight = true;
     loadSettings().then(function(){ return loadMonth(state.year, state.month); })
@@ -476,10 +493,43 @@
   }
 
   // ---------- today view rendering ----------
+  // ימים (החודש הנוכחי בלוח השנה האמיתי, עד אתמול) עם כניסה בלי יציאה או
+  // להפך - כנראה נשכח לרשום. לא כולל את היום הנוכחי (שם זה פשוט "עדיין בעבודה").
+  function findMissingPunches(){
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth(), todayNum = now.getDate();
+    var missing = [];
+    for (var d = 1; d < todayNum; d++){
+      var dt = new Date(y, m, d);
+      var dow = dt.getDay();
+      if (dow === 5 || dow === 6) continue;
+      var key = dateKey(y, m, d);
+      var rec = getDay(key);
+      if (rec.dayType) continue;
+      var hasStart = !!rec.start, hasEnd = !!rec.end;
+      if (hasStart !== hasEnd){
+        missing.push({day:d, month:m, label: pad(d)+"/"+pad(m+1), field: hasStart ? "יציאה" : "כניסה"});
+      }
+    }
+    return missing;
+  }
+
+  function renderMissingWarning(){
+    var el = document.getElementById("missingWarning");
+    if (!el) return;
+    var missing = findMissingPunches();
+    if (!missing.length){ el.classList.add("hidden"); return; }
+    var parts = missing.map(function(x){ return x.label + " (" + x.field + ")"; });
+    el.textContent = "⚠️ חסר רישום ב-" + missing.length + " " + (missing.length===1?"יום":"ימים") + ": " + parts.join(", ") + " — לחץ לתיקון";
+    el.classList.remove("hidden");
+  }
+
   function renderToday(){
     var now = new Date();
     var key = todayKeyNow();
     var rec = getDay(key);
+
+    renderMissingWarning();
 
     document.getElementById("todayDate").innerHTML =
       HE_DAYS[now.getDay()] + ", <b>" + pad(now.getDate())+"/"+pad(now.getMonth()+1)+"/"+now.getFullYear() + "</b>";
@@ -972,6 +1022,8 @@
   // ---------- wiring ----------
   document.getElementById("tabTodayBtn").addEventListener("click", function(){ showTab("today"); });
   document.getElementById("tabMonthBtn").addEventListener("click", function(){ showTab("month"); });
+
+  document.getElementById("missingWarning").addEventListener("click", function(){ showTab("month"); });
 
   document.getElementById("startBtn").addEventListener("click", startWorkDay);
   document.getElementById("stopBtn").addEventListener("click", stopWorkDay);
