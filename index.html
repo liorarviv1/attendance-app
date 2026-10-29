@@ -209,23 +209,6 @@
         </div>
       </div>
 
-      <div class="card">
-        <details class="manual-edit" id="acctDetails">
-          <summary>סנכרון בין מכשירים (מחשב/טלפון)</summary>
-          <div style="margin-top:10px; font-size:13px;">
-            <div id="acctStatus" style="margin-bottom:10px; color:var(--muted);"></div>
-            <div style="color:var(--muted); margin-bottom:8px;">
-              בחר/י "קוד סנכרון" אישי משלך (מילה או מספר שקל לזכור) והקלד/י אותו בדיוק אותו הדבר בכל מכשיר
-              שבו רוצים לראות את אותם הנתונים. פעם ראשונה שמקלידים קוד - הוא "נתפס"; בפעם הבאה (במכשיר אחר)
-              הוא פשוט מתחבר לאותם נתונים.
-            </div>
-            <div class="manual-edit-row">
-              <label>קוד סנכרון <input type="text" id="acctSyncCode" placeholder="לדוגמה: lior2026"></label>
-            </div>
-            <div style="margin-top:8px;"><button class="btn secondary" id="acctSyncBtn">התחבר עם הקוד הזה</button></div>
-          </div>
-        </details>
-      </div>
 
       <div class="card">
         <div class="table-scroll">
@@ -301,7 +284,7 @@
   };
 
   var supabase = null;
-  var userId = null;
+  var USER_ID = "me"; // אין יותר חשבונות/התחברות - כל המכשירים ניגשים ישר לאותה שורת נתונים
   var saveTimers = {};
   var settingsSaveTimer = null;
 
@@ -362,94 +345,20 @@
   }
 
   // ---------- Supabase ----------
+  // בלי אימייל, בלי סיסמה, בלי קוד סנכרון: מתחברים ישר למסד הנתונים עם המפתח
+  // הציבורי, בלי שלב התחברות בכלל. כל מכשיר שפותח את הקובץ עם אותם
+  // SUPABASE_URL/SUPABASE_ANON_KEY רואה וכותב ישר לאותן השורות (USER_ID קבוע).
   function initSupabase(){
     if (!window.supabase || SUPABASE_URL.indexOf("YOUR-PROJECT-REF") !== -1){
       setStatus("יש למלא את פרטי ה-Supabase בראש הקובץ");
       return Promise.resolve(false);
     }
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    return supabase.auth.getSession().then(function(res){
-      var session = res.data && res.data.session;
-      if (session){ userId = session.user.id; return true; }
-      return supabase.auth.signInAnonymously().then(function(r){
-        if (r.error) throw r.error;
-        userId = r.data.user.id;
-        return true;
-      });
-    }).catch(function(err){
-      console.error(err);
-      setStatus("שגיאת התחברות ל-Supabase");
-      return false;
-    });
-  }
-
-  // ---------- סנכרון בין מכשירים, לפי "קוד סנכרון" פשוט ----------
-  // הופכים את הקוד שהמשתמש בחר לאימייל+סיסמה פיקטיביים אך דטרמיניסטיים (אותו
-  // קוד = אותו אימייל/סיסמה תמיד), כדי שלא יהיה צורך בהרשמה אמיתית/אימות מייל.
-  var SYNC_CODE_KEY = "attendanceSyncCode";
-
-  function codeToCreds(code){
-    var clean = code.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (!clean) return null;
-    var email = "sync-" + clean + "@attendance.local";
-    var password = "sync_" + clean + "_pw"; // תמיד 6+ תווים
-    return {email: email, password: password};
-  }
-
-  function refreshAcctStatus(){
-    var el = document.getElementById("acctStatus");
-    if (!el) return;
-    var saved = localStorage.getItem(SYNC_CODE_KEY);
-    if (saved){
-      el.textContent = "מכשיר זה מחובר עם קוד הסנכרון: \"" + saved + "\".";
-      var codeInput = document.getElementById("acctSyncCode");
-      if (codeInput && !codeInput.value) codeInput.value = saved;
-    } else {
-      el.textContent = "מכשיר זה עדיין לא חובר לקוד סנכרון (משתמש בזיהוי זמני בלבד).";
-    }
-  }
-
-  function syncWithCode(){
-    var codeInput = document.getElementById("acctSyncCode");
-    var code = codeInput.value;
-    var creds = codeToCreds(code);
-    if (!creds){
-      alert("יש להקליד קוד סנכרון (אותיות/מספרים באנגלית)");
-      return;
-    }
-    setStatus("מתחבר עם קוד הסנכרון…");
-    supabase.auth.signInWithPassword(creds).then(function(res){
-      if (!res.error){
-        return afterSyncSignIn(res.data.user.id, code);
-      }
-      // אין עדיין חשבון לקוד הזה - ניצור אחד חדש
-      return supabase.auth.signUp(creds).then(function(res2){
-        if (res2.error){
-          alert("שגיאה: " + res2.error.message);
-          setStatus("שגיאה בסנכרון");
-          return;
-        }
-        if (!res2.data.session){
-          alert("בפרויקט ה-Supabase שלך מופעל \"Confirm email\" - צריך לכבות את זה (Authentication → Providers → Email → Confirm email: Off) כדי שהקוד יעבוד בלי מייל אמיתי.");
-          setStatus("צריך לכבות Confirm email בסופרבייס");
-          return;
-        }
-        return afterSyncSignIn(res2.data.user.id, code);
-      });
-    });
-  }
-
-  function afterSyncSignIn(uid, code){
-    userId = uid;
-    localStorage.setItem(SYNC_CODE_KEY, code.trim());
-    return loadSettings().then(function(){ return loadMonth(state.year, state.month); }).then(function(){
-      render(); refreshAcctStatus(); setStatus("מוכן - מסונכרן");
-      startRealtime();
-    });
+    return Promise.resolve(true);
   }
 
   function loadSettings(){
-    return supabase.from("attendance_settings").select("*").eq("user_id", userId).maybeSingle()
+    return supabase.from("attendance_settings").select("*").eq("user_id", USER_ID).maybeSingle()
       .then(function(res){
         if (res.error){ console.error(res.error); return; }
         if (res.data){
@@ -457,19 +366,19 @@
           state.shortStd = Number(res.data.short_std) || 8;
         } else {
           return supabase.from("attendance_settings").insert({
-            user_id: userId, full_std: state.fullStd, short_std: state.shortStd
+            user_id: USER_ID, full_std: state.fullStd, short_std: state.shortStd
           });
         }
       });
   }
 
   function saveSettings(){
-    if (!supabase || !userId) return;
+    if (!supabase) return;
     clearTimeout(settingsSaveTimer);
     settingsSaveTimer = setTimeout(function(){
       setStatus("שומר…");
       supabase.from("attendance_settings").upsert({
-        user_id: userId, full_std: state.fullStd, short_std: state.shortStd
+        user_id: USER_ID, full_std: state.fullStd, short_std: state.shortStd
       }, {onConflict:"user_id"}).then(function(res){
         setStatus(res.error ? "שגיאת שמירה" : "נשמר ✓");
       });
@@ -479,7 +388,7 @@
   function loadMonth(y, m){
     var from = dateKey(y, m, 1), to = dateKey(y, m, daysInMonth(y, m));
     return supabase.from("attendance_days").select("*")
-      .eq("user_id", userId).gte("day", from).lte("day", to)
+      .eq("user_id", USER_ID).gte("day", from).lte("day", to)
       .then(function(res){
         if (res.error){ console.error(res.error); setStatus("שגיאת טעינה"); return; }
         Object.keys(state.days).forEach(function(k){
@@ -498,13 +407,13 @@
   }
 
   function saveDay(key){
-    if (!supabase || !userId) return;
+    if (!supabase) return;
     clearTimeout(saveTimers[key]);
     saveTimers[key] = setTimeout(function(){
       var rec = getDay(key);
       setStatus("שומר…");
       supabase.from("attendance_days").upsert({
-        user_id: userId, day: key,
+        user_id: USER_ID, day: key,
         start_time: rec.start || null, end_time: rec.end || null,
         short_day: !!rec.shortDay, note: rec.note || "",
         day_type: rec.dayType || ""
@@ -516,7 +425,7 @@
 
   function clearMonth(y, m){
     var from = dateKey(y, m, 1), to = dateKey(y, m, daysInMonth(y, m));
-    return supabase.from("attendance_days").delete().eq("user_id", userId).gte("day", from).lte("day", to);
+    return supabase.from("attendance_days").delete().eq("user_id", USER_ID).gte("day", from).lte("day", to);
   }
 
   // ---------- עדכון חי (כמו "פראג") - Supabase Realtime + פולינג גיבוי ----------
@@ -529,7 +438,7 @@
     reloadTimer = setTimeout(doReload, 300);
   }
   function doReload(){
-    if (!supabase || !userId) return;
+    if (!supabase) return;
     if (reloadInFlight){ reloadAgain = true; return; }
     reloadInFlight = true;
     loadSettings().then(function(){ return loadMonth(state.year, state.month); })
@@ -541,11 +450,11 @@
       });
   }
   function startRealtime(){
-    if (!supabase || !userId) return;
+    if (!supabase) return;
     if (realtimeChannel){ try { supabase.removeChannel(realtimeChannel); } catch(e){} realtimeChannel = null; }
-    realtimeChannel = supabase.channel("attendance-sync-" + userId)
-      .on("postgres_changes", {event:"*", schema:"public", table:"attendance_days", filter:"user_id=eq." + userId}, scheduleReload)
-      .on("postgres_changes", {event:"*", schema:"public", table:"attendance_settings", filter:"user_id=eq." + userId}, scheduleReload)
+    realtimeChannel = supabase.channel("attendance-sync-" + USER_ID)
+      .on("postgres_changes", {event:"*", schema:"public", table:"attendance_days", filter:"user_id=eq." + USER_ID}, scheduleReload)
+      .on("postgres_changes", {event:"*", schema:"public", table:"attendance_settings", filter:"user_id=eq." + USER_ID}, scheduleReload)
       .subscribe();
   }
 
@@ -1055,7 +964,6 @@
     });
   });
   document.getElementById("exportBtn").addEventListener("click", exportExcel);
-  document.getElementById("acctSyncBtn").addEventListener("click", syncWithCode);
 
   setInterval(tickClock, 1000);
   tickClock();
@@ -1072,7 +980,6 @@
   initSupabase().then(function(ok){
     if (!ok) { render(); return; }
     setStatus("טוען…");
-    refreshAcctStatus();
     return loadSettings().then(function(){ return loadMonth(state.year, state.month); })
       .then(function(){ render(); setStatus("מוכן"); startRealtime(); })
       .catch(function(err){ console.error(err); render(); setStatus("שגיאת טעינה"); });
