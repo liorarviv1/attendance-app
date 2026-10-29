@@ -277,9 +277,9 @@
   var SUPABASE_ANON_KEY = "sb_publishable_oKjkaD8lMQsXvxCZviBwmQ_zy5xFkl7";
   // ============================================================
 
-  // מספר גרסה - משתנה בכל פעם שמעלים קובץ חדש, כדי שהבדיקה האוטומטית למטה
-  // (checkForUpdate) תדע אם יש גרסה חדשה יותר מזו שהדפדפן שמר בזיכרון המטמון.
-  var BUILD_VERSION = "2026-10-29-04";
+  // (בדיקת גרסה חדשה - ראה checkForUpdate למטה. אין כאן יותר מספר גרסה ידני
+  // שצריך לזכור לעדכן בכל העלאה - ההשוואה היא לפי hash של התוכן בפועל,
+  // בדיוק כמו באפליקציית פראג.)
 
   var HE_DAYS = ["יום ראשון","יום שני","יום שלישי","יום רביעי","יום חמישי","יום שישי","שבת"];
   var HE_MONTHS = ["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"];
@@ -1236,29 +1236,39 @@
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) scheduleReload(); });
 
   // ---------- עדכון גרסה אוטומטי, בלי שום הודעה/באנר ----------
-  // הדפדפן (בעיקר בטלפון) נוטה לשמור בזיכרון מטמון עותק ישן של הקובץ, ולכן
-  // אחרי שמעלים גרסה חדשה ל-GitHub זה לא "נתפס" אוטומטית. כאן, ברקע ובלי
-  // להציג כלום למשתמש, שולפים את אותו הקובץ ישירות מהשרת (cache:"no-store"
-  // כדי לעקוף את המטמון), ואם הגרסה שם שונה מהגרסה שרצה כרגע - טוענים
-  // מחדש פעם אחת עם פרמטר שמבטל קאש, כדי שהדף יתעדכן לבד תוך כמה שניות.
+  // בלי מספר גרסה ידני שצריך לזכור לעדכן בכל העלאה (זו הייתה הבעיה בגרסה
+  // הקודמת - אם שוכחים לעדכן מספר, הבדיקה אף פעם לא תופסת שינוי). במקום זה,
+  // בדיוק כמו באפליקציית פראג: שולפים את הקובץ ישירות מהשרת (cache:"no-store"
+  // כדי לעקוף את המטמון של הדפדפן), מחשבים hash של התוכן בפועל, ומשווים
+  // ל-hash שנשמר מהבדיקה הקודמת. אם הוא שונה - יש גרסה חדשה בשרת, וטוענים
+  // את הדף מחדש לבד. אם המשתמש באמצע עריכה (שדה שעה/טקסט פתוח) - מחכים עד
+  // שיסיים, כדי לא לאבד הקלדה באמצע.
+  var lastHtmlHash = null;
+  function simpleHash(str){
+    var h = 0;
+    for (var i=0; i<str.length; i++){ h = (h*31 + str.charCodeAt(i)) | 0; }
+    return h;
+  }
   function checkForUpdate(){
     try {
       fetch(location.pathname + "?_=" + Date.now(), {cache:"no-store"})
         .then(function(res){ return res.ok ? res.text() : null; })
         .then(function(text){
           if (!text) return;
-          var m = text.match(/BUILD_VERSION\s*=\s*"([^"]+)"/);
-          if (!m || m[1] === BUILD_VERSION) return;
-          if (sessionStorage.getItem("justUpdatedTo") === m[1]) return; // מניעת לולאת רענון
-          sessionStorage.setItem("justUpdatedTo", m[1]);
-          location.href = location.pathname + "?v=" + encodeURIComponent(m[1]);
+          var h = simpleHash(text);
+          if (lastHtmlHash === null){ lastHtmlHash = h; return; } // קביעת בסיס בבדיקה הראשונה
+          if (h === lastHtmlHash) return; // אין שינוי
+          if (isUserEditingNow()){ setTimeout(checkForUpdate, 3000); return; } // ממתינים לסיום עריכה
+          location.href = location.pathname + "?_v=" + Date.now();
         })
         .catch(function(){});
     } catch(e){}
   }
-  checkForUpdate();
-  setInterval(function(){ if (!document.hidden) checkForUpdate(); }, 120000);
+  setTimeout(checkForUpdate, 2000);
+  setInterval(function(){ if (!document.hidden) checkForUpdate(); }, 20000);
   document.addEventListener("visibilitychange", function(){ if (!document.hidden) checkForUpdate(); });
+  window.addEventListener("pageshow", checkForUpdate);
+  window.addEventListener("focus", checkForUpdate);
 
   // מציגים את הטבלה (עם ימי החודש) גם לפני/בלי חיבור לסופרבייס, כדי שהתאריכים
   // תמיד יופיעו - אם אין חיבור, הנתונים פשוט לא יישמרו עד שהחיבור יתוקן.
