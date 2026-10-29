@@ -842,7 +842,7 @@
       var isWeekend = (dow===5 || dow===6);
       if (isWeekend) continue; // שישי/שבת לא מקבלים שורה בכלל
 
-      if (dow === 0 && firstRowWritten) row += 1; // שורת רווח קטנה בין שבוע לשבוע
+      if (dow === 0 && firstRowWritten) row += 2; // 2 שורות רווח בין שבוע לשבוע
 
       var key = dateKey(state.year, state.month, d);
       var rec = getDay(key);
@@ -902,14 +902,14 @@
     var Ht=colLetter(H)+totalRow, It=colLetter(I)+totalRow, Kt=colLetter(K)+totalRow, Lt=colLetter(L)+totalRow;
 
     setCell(ws, colLetter(C)+totalRow, {t:"s", v:'סה"כ'});
-    setCell(ws, Ht, {t:"n", z:"h:mm", f:"SUM("+Hrange+")*0.25+SUM("+Hrange+")"});
+    setCell(ws, Ht, {t:"n", z:"[h]:mm", f:"SUM("+Hrange+")*0.25+SUM("+Hrange+")"});
     setCell(ws, It, {t:"n", f:"(SUMIF("+Irange+',">0")*1.25)+SUMIF('+Irange+',"<0")'});
-    setCell(ws, Kt, {t:"n", z:"h:mm", f:"SUM("+Krange+")"});
-    setCell(ws, Lt, {t:"n", z:"h:mm", f:"SUM("+Ht+"-"+Kt+")"});
+    setCell(ws, Kt, {t:"n", z:"[h]:mm", f:"SUM("+Krange+")"});
+    setCell(ws, Lt, {t:"n", z:"[h]:mm", f:"SUM("+Ht+"-"+Kt+")"});
     setCell(ws, colLetter(H)+(totalRow+1), {t:"s", v:'כולל 25%'});
     setCell(ws, colLetter(L)+(totalRow+1), {t:"s", v:'כמה נשאר עודף/חוסר'});
     var balanceRow = totalRow+3;
-    setCell(ws, colLetter(K)+balanceRow, {t:"n", z:"h:mm:ss AM/PM", f:"IF("+Ht+">"+Kt+","+Ht+"-"+Kt+","+Kt+"-"+Ht+")"});
+    setCell(ws, colLetter(K)+balanceRow, {t:"n", z:"[h]:mm", f:"IF("+Ht+">"+Kt+","+Ht+"-"+Kt+","+Kt+"-"+Ht+")"});
 
     // עיצוב שורת הסיכום - בדיוק כמו ב"תיעוד נוסחאות ועיצוב" ששלחת: H/I ירוק
     // (סיכום חיובי - עודף), K אדום (סיכום שלילי - חוסר), ו-L (המאזן הסופי)
@@ -948,13 +948,37 @@
     return JSZip.loadAsync(buf).then(function(zip){
       var parser = new DOMParser();
       var serializer = new XMLSerializer();
+      var sheetPath = "xl/worksheets/sheet1.xml";
 
-      return zip.file("xl/styles.xml").async("string").then(function(stylesXmlStr){
+      return Promise.all([
+        zip.file("xl/styles.xml").async("string"),
+        zip.file(sheetPath).async("string")
+      ]).then(function(parts){
+        var stylesXmlStr = parts[0], sheetXmlStr = parts[1];
         var stylesDoc = parser.parseFromString(stylesXmlStr, "application/xml");
+        var sheetDoc = parser.parseFromString(sheetXmlStr, "application/xml");
         var ns = stylesDoc.documentElement.namespaceURI;
         var fillsEl = stylesDoc.getElementsByTagName("fills")[0];
         var cellXfsEl = stylesDoc.getElementsByTagName("cellXfs")[0];
         var fontsEl = stylesDoc.getElementsByTagName("fonts")[0];
+
+        // שומרים את ה-numFmtId המקורי (תבנית שעה וכו') של כל תא שעומד
+        // לקבל צבע/גופן, כדי שהצביעה לא "תמחק" את פורמט השעה שלו.
+        var origXfList = cellXfsEl.getElementsByTagName("xf");
+        function origNumFmtIdFor(addr){
+          var cEl = sheetDoc.querySelector('c[r="' + addr + '"]');
+          if (!cEl) return 0;
+          var sAttr = cEl.getAttribute("s");
+          if (sAttr === null) return 0;
+          var idx = parseInt(sAttr, 10);
+          var xfEl = origXfList[idx];
+          if (!xfEl) return 0;
+          var fmt = xfEl.getAttribute("numFmtId");
+          return fmt ? parseInt(fmt, 10) : 0;
+        }
+        cellStyles.forEach(function(s){
+          if (s.numFmtId === undefined) s.numFmtId = origNumFmtIdFor(s.addr);
+        });
 
         var fontCache = {}, fillCache = {}, xfCache = {};
 
@@ -1014,16 +1038,18 @@
           var needsFont = spec.bold || spec.font || spec.size;
           var fontId = needsFont ? ensureFont(!!spec.bold, spec.font, spec.size) : 0;
           var fillId = ensureFill(spec.fill);
-          var key = fontId + "|" + fillId;
+          var numFmtId = spec.numFmtId || 0;
+          var key = fontId + "|" + fillId + "|" + numFmtId;
           if (xfCache[key] !== undefined) return xfCache[key];
           var xfEl = stylesDoc.createElementNS(ns, "xf");
-          xfEl.setAttribute("numFmtId", "0");
+          xfEl.setAttribute("numFmtId", String(numFmtId));
           xfEl.setAttribute("fontId", String(fontId));
           xfEl.setAttribute("fillId", String(fillId));
           xfEl.setAttribute("borderId", "0");
           xfEl.setAttribute("xfId", "0");
           if (needsFont) xfEl.setAttribute("applyFont", "1");
           if (fillId) xfEl.setAttribute("applyFill", "1");
+          if (numFmtId) xfEl.setAttribute("applyNumberFormat", "1");
           cellXfsEl.appendChild(xfEl);
           var count = parseInt(cellXfsEl.getAttribute("count"), 10);
           cellXfsEl.setAttribute("count", String(count + 1));
@@ -1036,18 +1062,14 @@
         var newStylesXml = serializer.serializeToString(stylesDoc);
         zip.file("xl/styles.xml", newStylesXml);
 
-        var sheetPath = "xl/worksheets/sheet1.xml";
-        return zip.file(sheetPath).async("string").then(function(sheetXmlStr){
-          var sheetDoc = parser.parseFromString(sheetXmlStr, "application/xml");
-          cellStyles.forEach(function(s){
-            var cEl = sheetDoc.querySelector('c[r="' + s.addr + '"]');
-            if (cEl) cEl.setAttribute("s", String(s.styleIndex));
-          });
-          var newSheetXml = serializer.serializeToString(sheetDoc);
-          zip.file(sheetPath, newSheetXml);
-
-          return zip.generateAsync({type:"blob", mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+        cellStyles.forEach(function(s){
+          var cEl = sheetDoc.querySelector('c[r="' + s.addr + '"]');
+          if (cEl) cEl.setAttribute("s", String(s.styleIndex));
         });
+        var newSheetXml = serializer.serializeToString(sheetDoc);
+        zip.file(sheetPath, newSheetXml);
+
+        return zip.generateAsync({type:"blob", mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
       });
     }).then(function(blob){
       var url = URL.createObjectURL(blob);
